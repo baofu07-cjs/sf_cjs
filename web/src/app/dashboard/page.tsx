@@ -37,15 +37,15 @@ export default function DashboardPage() {
   const { temperature, humidity, ec, ph, loading, error } = useSensorData({ useRealtime: true });
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
         {/* 헤더 */}
-        <div className="mb-8 flex items-start justify-between gap-6">
+        <div className="mb-4 sm:mb-8 flex flex-col sm:flex-row items-start justify-between gap-4 sm:gap-6">
           <div className="flex-1">
-            <h1 className="dashboard-title text-6xl mb-3">
+            <h1 className="dashboard-title text-4xl sm:text-6xl mb-2">
               스마트팜 대시보드
             </h1>
-            <div className="text-2xl text-gray-500 font-semibold">
+            <div className="text-base sm:text-2xl text-gray-500 font-semibold">
               {new Date().toLocaleDateString('ko-KR', {
                 year: 'numeric',
                 month: 'long',
@@ -79,14 +79,14 @@ export default function DashboardPage() {
         />
 
         {/* 센서 섹션 */}
-        <div className="bg-blue-100 rounded-xl p-8 mb-36 border-2 border-blue-400 shadow-lg">
+        <div className="bg-blue-100 rounded-xl p-4 sm:p-6 md:p-8 mb-24 sm:mb-36 border-2 border-blue-400 shadow-lg">
           <div className="mb-6">
             <h2 className="text-3xl font-bold text-blue-900 mb-2">센서 모니터링</h2>
             <div className="h-1 w-24 bg-blue-600 rounded-full"></div>
           </div>
 
           {/* 센서 게이지 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
             <SensorGauge
               key={`temperature-${temperature?.id || temperature?.value || 'none'}`}
               type="temperature"
@@ -138,7 +138,7 @@ export default function DashboardPage() {
           </div>
 
           {/* 센서 차트 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
             <SensorChart
               sensorType="temperature"
               unit="°C"
@@ -171,29 +171,29 @@ export default function DashboardPage() {
 
           {/* 센서 데이터 이력 테이블 - 각 센서별로 구분 */}
           <div className="mt-8">
-            <h3 className="text-2xl font-bold text-blue-900 mb-6">센서 데이터 이력</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <h3 className="text-xl sm:text-2xl font-bold text-blue-900 mb-4 sm:mb-6">센서 데이터 이력</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {/* 온도 테이블 */}
               <div>
-                <h4 className="text-xl font-semibold text-blue-800 mb-3">🌡️ 온도 데이터</h4>
+                <h4 className="text-lg sm:text-xl font-semibold text-blue-800 mb-3">🌡️ 온도 데이터</h4>
                 <SensorHistoryTable sensorType="temperature" limit={20} />
               </div>
               
               {/* 습도 테이블 */}
               <div>
-                <h4 className="text-xl font-semibold text-blue-800 mb-3">💧 습도 데이터</h4>
+                <h4 className="text-lg sm:text-xl font-semibold text-blue-800 mb-3">💧 습도 데이터</h4>
                 <SensorHistoryTable sensorType="humidity" limit={20} />
               </div>
               
               {/* EC 테이블 */}
               <div>
-                <h4 className="text-xl font-semibold text-blue-800 mb-3">⚡ EC 데이터</h4>
+                <h4 className="text-lg sm:text-xl font-semibold text-blue-800 mb-3">⚡ EC 데이터</h4>
                 <SensorHistoryTable sensorType="ec" limit={20} />
               </div>
               
               {/* pH 테이블 */}
               <div>
-                <h4 className="text-xl font-semibold text-blue-800 mb-3">🧪 pH 데이터</h4>
+                <h4 className="text-lg sm:text-xl font-semibold text-blue-800 mb-3">🧪 pH 데이터</h4>
                 <SensorHistoryTable sensorType="ph" limit={20} />
               </div>
             </div>

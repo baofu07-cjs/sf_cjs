@@ -29,10 +29,9 @@ export async function GET() {
       process.env.MQTT_PASSWORD
     );
     
-    // 서버리스 환경에서는 각 요청마다 새로운 인스턴스가 생성될 수 있으므로
-    // 실제 연결 상태가 없어도 환경 변수가 설정되어 있으면 "연결 가능" 상태로 표시
-    // 또는 실제로 연결되어 있으면 연결된 것으로 표시
-    const connected = isClientConnected || isManagerConnected || hasEnvVars;
+    // 연결 여부는 "실제 소켓 연결" 기준으로만 판단한다.
+    // (환경 변수 존재 여부는 연결 가능 여부로 별도 제공)
+    const connected = isClientConnected || isManagerConnected;
 
     // 디버깅을 위한 상세 정보 (개발 환경에서만)
     const debugInfo = process.env.NODE_ENV === 'development' ? {
@@ -47,6 +46,7 @@ export async function GET() {
 
     return NextResponse.json({
       connected,
+      ready: hasEnvVars,
       timestamp: new Date().toISOString(),
       ...(debugInfo && { debug: debugInfo }),
     });
@@ -55,6 +55,7 @@ export async function GET() {
     return NextResponse.json(
       { 
         connected: false,
+        ready: false,
         error: '상태 확인에 실패했습니다.', 
         details: error instanceof Error ? error.message : '알 수 없는 오류' 
       },

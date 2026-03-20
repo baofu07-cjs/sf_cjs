@@ -53,22 +53,26 @@ export default function SystemStatus({ mqttConnected }: SystemStatusProps) {
   const isConnected = mqttConnected ?? mqttStatus;
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200">
-      <div className="flex items-start gap-8">
-        {/* 왼쪽: 제목 */}
-        <h3 className="text-2xl font-bold text-gray-700 flex-shrink-0">시스템 상태</h3>
-        
-        {/* 오른쪽: 상태 목록 */}
-        <div className="flex-1 space-y-4">
+    <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 border border-gray-200">
+      <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-8">
+        {/* 제목 */}
+        <h3 className="text-xl sm:text-2xl font-bold text-gray-700 flex-shrink-0">
+          시스템 상태
+        </h3>
+
+        {/* 상태 목록 */}
+        <div className="flex-1 space-y-4 w-full">
           <div className="flex items-center justify-start gap-4">
-            <span className="text-base text-gray-600 font-semibold w-32">MQTT 연결</span>
+            <span className="text-sm sm:text-base text-gray-600 font-semibold w-28 sm:w-32">
+              MQTT 연결
+            </span>
             {loading ? (
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
             ) : (
-              <div className="flex items-center gap-3">
-                <div className={`flex items-center gap-2`}>
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
                   <div className={`w-4 h-4 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <span className={`text-base font-semibold ${isConnected ? 'text-green-700' : 'text-red-700'}`}>
+                  <span className={`text-sm sm:text-base font-semibold ${isConnected ? 'text-green-700' : 'text-red-700'}`}>
                     {isConnected ? '연결됨' : '연결 끊김'}
                   </span>
                 </div>
@@ -88,18 +92,24 @@ export default function SystemStatus({ mqttConnected }: SystemStatusProps) {
               </div>
             )}
           </div>
+
           <div className="flex items-center justify-start gap-4">
-            <span className="text-base text-gray-600 font-semibold w-32">데이터베이스</span>
+            <span className="text-sm sm:text-base text-gray-600 font-semibold w-28 sm:w-32">
+              데이터베이스
+            </span>
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded-full bg-green-500"></div>
-              <span className="text-base font-semibold text-green-700">연결됨</span>
+              <span className="text-sm sm:text-base font-semibold text-green-700">연결됨</span>
             </div>
           </div>
+
           <div className="flex items-center justify-start gap-4">
-            <span className="text-base text-gray-600 font-semibold w-32">실시간 업데이트</span>
+            <span className="text-sm sm:text-base text-gray-600 font-semibold w-28 sm:w-32">
+              실시간 업데이트
+            </span>
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded-full bg-green-500"></div>
-              <span className="text-base font-semibold text-green-700">활성화</span>
+              <span className="text-sm sm:text-base font-semibold text-green-700">활성화</span>
             </div>
           </div>
         </div>

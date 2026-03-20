@@ -135,17 +135,20 @@ export default function SensorGauge({
   const { status, gaugeColor, clampedPercentage, startX, startY, endX, endY, radius, centerX, centerY, largeArcFlag } = gaugeProps;
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+    <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 border border-gray-200">
       <div className="text-center">
-        <h3 className="text-lg font-semibold text-gray-700 mb-4">{label}</h3>
+        <h3 className="text-base sm:text-lg font-semibold text-gray-700 mb-3">{label}</h3>
         
         {loading ? (
-          <div className="flex items-center justify-center h-48">
+          <div className="flex items-center justify-center h-40 sm:h-48">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
           </div>
         ) : (
           <div className="relative">
-            <svg width="200" height="120" className="mx-auto" viewBox="0 0 200 120">
+            <svg
+              className="mx-auto w-44 sm:w-48 h-auto"
+              viewBox="0 0 200 120"
+            >
               {/* 배경 반원 (왼쪽에서 오른쪽으로) */}
               <path
                 d={`M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 0 1 ${centerX + radius} ${centerY}`}
@@ -168,12 +171,12 @@ export default function SensorGauge({
             </svg>
             
             {/* 값 표시 */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center mt-8">
-              <div className="text-3xl font-bold" style={{ color: gaugeColor }}>
+            <div className="absolute inset-0 flex flex-col items-center justify-center mt-6 sm:mt-8">
+              <div className="text-2xl sm:text-3xl font-bold" style={{ color: gaugeColor }}>
                 {value.toFixed(1)}
               </div>
-              <div className="text-sm text-gray-500">{unit}</div>
-              <div className="text-xs text-gray-400 mt-1">
+              <div className="text-xs sm:text-sm text-gray-500">{unit}</div>
+              <div className="text-[10px] sm:text-xs text-gray-400 mt-1">
                 {min} ~ {max}
               </div>
             </div>
@@ -182,9 +185,9 @@ export default function SensorGauge({
 
         {/* 상태 표시 */}
         {!loading && (
-          <div className="mt-4 flex items-center justify-center gap-2">
-            <span className="text-2xl">{getStatusEmoji(status)}</span>
-            <span className="text-sm font-medium" style={{ color: gaugeColor }}>
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <span className="text-xl sm:text-2xl">{getStatusEmoji(status)}</span>
+            <span className="text-xs sm:text-sm font-medium" style={{ color: gaugeColor }}>
               {getStatusText(status)}
             </span>
           </div>

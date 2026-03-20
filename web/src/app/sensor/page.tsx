@@ -34,15 +34,15 @@ export default function SensorPage() {
   const { temperature, humidity, ec, ph, loading, error } = useSensorData({ useRealtime: true });
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
         {/* 헤더 */}
-        <div className="mb-8 flex items-start justify-between gap-6">
+        <div className="mb-4 sm:mb-8 flex flex-col sm:flex-row items-start justify-between gap-4 sm:gap-6">
           <div className="flex-1">
-            <h1 className="text-5xl font-bold text-gray-900 mb-3">
+            <h1 className="text-3xl sm:text-5xl font-bold text-gray-900 mb-2">
               🌡️ 센서 모니터링
             </h1>
-            <div className="text-xl text-gray-500 font-semibold">
+            <div className="text-base sm:text-xl text-gray-500 font-semibold">
               {new Date().toLocaleDateString('ko-KR', {
                 year: 'numeric',
                 month: 'long',
@@ -76,14 +76,14 @@ export default function SensorPage() {
         />
 
         {/* 센서 섹션 */}
-        <div className="bg-blue-100 rounded-xl p-8 border-2 border-blue-400 shadow-lg">
+        <div className="bg-blue-100 rounded-xl p-4 sm:p-6 md:p-8 border-2 border-blue-400 shadow-lg">
           <div className="mb-6">
-            <h2 className="text-3xl font-bold text-blue-900 mb-2">실시간 센서 데이터</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-blue-900 mb-2">실시간 센서 데이터</h2>
             <div className="h-1 w-24 bg-blue-600 rounded-full"></div>
           </div>
 
           {/* 센서 게이지 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
             <SensorGauge
               key={`temperature-${temperature?.id || temperature?.value || 'none'}`}
               type="temperature"
@@ -135,7 +135,7 @@ export default function SensorPage() {
           </div>
 
           {/* 센서 차트 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             <SensorChart
               sensorType="temperature"
               unit="°C"
