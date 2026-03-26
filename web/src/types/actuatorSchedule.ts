@@ -1,0 +1,31 @@
+export type ActuatorScheduleMode = 'disabled' | 'day_night' | 'cycle';
+
+export type ActuatorScheduleActuator = 'led' | 'pump' | 'fan1' | 'fan2';
+
+export interface DayNightSchedule {
+  mode: 'day_night';
+  enabled: boolean;
+  timezone: string; // e.g. "Asia/Seoul"
+  day_start: string; // "HH:mm"
+  night_start: string; // "HH:mm"
+  day_state: 'on' | 'off';
+  night_state: 'on' | 'off';
+}
+
+export interface CycleSchedule {
+  mode: 'cycle';
+  enabled: boolean;
+  timezone: string; // e.g. "Asia/Seoul"
+  on_minutes: number; // e.g. 1
+  off_minutes: number; // e.g. 30
+  // anchor within day; simplest is midnight local time
+}
+
+export type ActuatorSchedule = { mode: 'disabled'; enabled: false } | DayNightSchedule | CycleSchedule;
+
+export interface ActuatorSchedulesV1 {
+  version: 1;
+  updated_at: string; // ISO
+  actuators: Record<ActuatorScheduleActuator, ActuatorSchedule>;
+}
+

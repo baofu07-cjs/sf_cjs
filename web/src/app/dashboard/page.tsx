@@ -8,6 +8,7 @@ import ActuatorControl from '@/components/ActuatorControl';
 import SystemStatus from '@/components/SystemStatus';
 import OperatingMode from '@/components/OperatingMode';
 import AlertMessage from '@/components/AlertMessage';
+import ActuatorScheduleSettings from '@/components/ActuatorScheduleSettings';
 
 // 기본 임계값 설정 (이미지 참고)
 const defaultThresholds = {
@@ -211,6 +212,9 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
             <OperatingMode />
             <div className="lg:col-span-4">
+              <div className="mb-6">
+                <ActuatorScheduleSettings />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
                 <ActuatorControl
                   type="led"

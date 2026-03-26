@@ -53,5 +53,4 @@ file_size_limit = "50MiB"
 [edge_runtime]
 # Edge Functions 설정
 enabled = true
-port = 54327
 inspector_port = 54328
