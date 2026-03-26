@@ -2,6 +2,7 @@
 
 import ActuatorControl from '@/components/ActuatorControl';
 import OperatingMode from '@/components/OperatingMode';
+import ActuatorScheduleSettings from '@/components/ActuatorScheduleSettings';
 
 export default function ActuatorPage() {
   return (
@@ -33,6 +34,9 @@ export default function ActuatorPage() {
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
             <OperatingMode />
             <div className="lg:col-span-4">
+              <div className="mb-6">
+                <ActuatorScheduleSettings />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
                 <ActuatorControl
                   type="led"
