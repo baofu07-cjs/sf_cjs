@@ -901,10 +901,10 @@ void readAndPublishSensors() {
 
   // 시리얼 모니터 출력
   Serial.println("--- 센서 데이터 ---");
-  Serial.print("온도: ");
+  Serial.print("온도 : ");
   Serial.print(temperature);
   Serial.println(" °C");
-  Serial.print("습도: ");
+  Serial.print("습도 : ");
   Serial.print(humidity);
   Serial.println(" %");
   Serial.print("EC: ");
@@ -936,7 +936,9 @@ void publishSensorData(const char* sensorType, float value, const char* unit, un
  * 모든 센서 데이터 통합 MQTT 발행
  */
 void publishAllSensorData(float temperature, float humidity, float ec, float ph, unsigned long timestamp) {
+  
   StaticJsonDocument<300> doc;
+
   doc["temperature"] = temperature;
   doc["humidity"] = humidity;
   doc["ec"] = ec;
@@ -944,7 +946,7 @@ void publishAllSensorData(float temperature, float humidity, float ec, float ph,
   doc["timestamp"] = timestamp;
 
   char jsonBuffer[300];
-  serializeJson(doc, jsonBuffer);
+  serializeJson(doc, jsonBuffer); 
 
   mqttClient.publish("smartfarm/sensors/all", jsonBuffer);
 }
