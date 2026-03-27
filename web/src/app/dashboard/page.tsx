@@ -9,6 +9,7 @@ import SystemStatus from '@/components/SystemStatus';
 import OperatingMode from '@/components/OperatingMode';
 import AlertMessage from '@/components/AlertMessage';
 import ActuatorScheduleSettings from '@/components/ActuatorScheduleSettings';
+import { useActuatorControl } from '@/hooks/useActuatorControl';
 
 // 기본 임계값 설정 (이미지 참고)
 const defaultThresholds = {
@@ -36,6 +37,12 @@ const defaultThresholds = {
 
 export default function DashboardPage() {
   const { temperature, humidity, ec, ph, loading, error } = useSensorData({ useRealtime: true });
+  const { state: actuatorState, loading: actuatorLoading, controlActuator } = useActuatorControl();
+
+  const handleActuatorToggle = async (type: 'led' | 'pump' | 'fan1' | 'fan2') => {
+    const action = actuatorState[type].enabled ? 'off' : 'on';
+    await controlActuator(type, action);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
@@ -221,24 +228,36 @@ export default function DashboardPage() {
                   label="LED"
                   icon="💡"
                   color="#eab308"
+                  enabled={actuatorState.led.enabled}
+                  loading={actuatorLoading}
+                  onToggle={() => handleActuatorToggle('led')}
                 />
                 <ActuatorControl
                   type="pump"
                   label="펌프"
                   icon="⚙️"
                   color="#3b82f6"
+                  enabled={actuatorState.pump.enabled}
+                  loading={actuatorLoading}
+                  onToggle={() => handleActuatorToggle('pump')}
                 />
                 <ActuatorControl
                   type="fan1"
                   label="팬 1"
                   icon="🔄"
                   color="#a3e635"
+                  enabled={actuatorState.fan1.enabled}
+                  loading={actuatorLoading}
+                  onToggle={() => handleActuatorToggle('fan1')}
                 />
                 <ActuatorControl
                   type="fan2"
                   label="팬 2"
                   icon="🔄"
                   color="#a3e635"
+                  enabled={actuatorState.fan2.enabled}
+                  loading={actuatorLoading}
+                  onToggle={() => handleActuatorToggle('fan2')}
                 />
               </div>
             </div>
