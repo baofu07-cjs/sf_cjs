@@ -10,7 +10,11 @@ interface UseActuatorControlOptions {
 
 export function useActuatorControl(options: UseActuatorControlOptions = {}) {
   const { useRealtime = true } = options;
-  const supabase = createClient();
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
+  if (!supabaseRef.current) {
+    supabaseRef.current = createClient();
+  }
+  const supabase = supabaseRef.current;
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   
   const [state, setState] = useState<ActuatorState>({
@@ -102,7 +106,7 @@ export function useActuatorControl(options: UseActuatorControlOptions = {}) {
         error: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.',
       };
     }
-  }, [fetchStatus]);
+  }, []);
 
   useEffect(() => {
     // 초기 로드
@@ -134,7 +138,7 @@ export function useActuatorControl(options: UseActuatorControlOptions = {}) {
         }
       };
     }
-  }, [fetchStatus, useRealtime, supabase]);
+  }, [fetchStatus, useRealtime]);
 
   return {
     state,
