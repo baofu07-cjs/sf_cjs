@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { ActuatorType } from '@/types/actuator';
 import { initMQTTClient } from '@/lib/mqtt';
-import { getMQTTClient } from '@/lib/mqtt';
 
 /**
  * 액츄에이터 현재 상태 조회 API
@@ -28,57 +27,17 @@ export async function GET(request: NextRequest) {
     const states: Record<string, { enabled: boolean; value: number | null }> = {};
 
     for (const actuatorType of actuatorTypes) {
-      // MQTT retained 상태를 즉시 읽어오면(DB 저장 지연/서버리스 레이스 없이) 수동 UI가 되돌아가지 않음
-      try {
-        const mqtt = getMQTTClient();
-        const s = await mqtt.fetchActuatorStatusOnce(actuatorType, 1200);
-        if (typeof s === 'boolean') {
-          if (actuatorType === 'led') {
-            states[actuatorType] = { enabled: s, value: s ? 100 : 0 };
-          } else {
-            states[actuatorType] = { enabled: s, value: null };
-          }
-          continue;
-        }
-      } catch (_) {
-        // ignore and fallback to DB
-      }
-
-      // 1) Arduino 상태(user_id null) 우선
-      const { data: statusRows } = await supabase
+      // 단순/안정 원칙: 각 액추에이터의 최신 상태 1건만 사용
+      const { data, error } = await supabase
         .from('actuator_control')
         .select('*')
         .eq('actuator_type', actuatorType)
-        .is('user_id', null)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
         .limit(1);
-      const statusLatest = statusRows && statusRows.length > 0 ? statusRows[0] : null;
+      const latestRecord = data && data.length > 0 ? data[0] : null;
 
-      // 2) 최근 수동 명령(user_id not null)이 더 최신이면, 상태가 아직 안 올라온 것으로 보고 임시로 표시
-      const { data: cmdRows } = await supabase
-        .from('actuator_control')
-        .select('*')
-        .eq('actuator_type', actuatorType)
-        .not('user_id', 'is', null)
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
-        .limit(1);
-      const cmdLatest = cmdRows && cmdRows.length > 0 ? cmdRows[0] : null;
-
-      const latestRecord = (() => {
-        if (!statusLatest && !cmdLatest) return null;
-        if (statusLatest && !cmdLatest) return statusLatest;
-        if (!statusLatest && cmdLatest) return cmdLatest;
-        const statusT = new Date(statusLatest!.created_at).getTime();
-        const cmdT = new Date(cmdLatest!.created_at).getTime();
-        // status가 없고 명령만 최신인 경우가 길게 유지되면 실제 반영 실패이므로,
-        // 명령 표시는 짧게(10초)만 허용하고 이후는 status 기준으로 되돌림
-        if (cmdT > statusT && Date.now() - cmdT < 10_000) return cmdLatest!;
-        return statusLatest!;
-      })();
-
-      if (latestRecord) {
+      if (!error && latestRecord) {
         if (actuatorType === 'led') {
           // LED의 경우: 'off'이면 disabled, 'on' 또는 'set'이면 enabled
           let isEnabled = false;

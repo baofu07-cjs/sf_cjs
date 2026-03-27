@@ -30,9 +30,6 @@ class MQTTClientManager {
   private reconnectDelay = 5000; // 5초
   private isConnecting = false; // 연결 시도 중 플래그
   private connectPromise: Promise<void> | null = null; // 중복 연결 방지
-  private actuatorStatusCache: Partial<
-    Record<'led' | 'pump' | 'fan1' | 'fan2', { state: boolean; receivedAt: number }>
-  > = {};
 
   /**
    * MQTT 클라이언트 연결
@@ -202,12 +199,6 @@ class MQTTClientManager {
       if (topic.startsWith('smartfarm/sensors/')) {
         await this.handleSensorMessage(topic, parsed);
       } else if (topic.startsWith('smartfarm/actuator-status/')) {
-        const last = topic.split('/').pop();
-        const actuatorType: 'led' | 'pump' | 'fan1' | 'fan2' | null =
-          last === 'led' || last === 'pump' || last === 'fan1' || last === 'fan2' ? last : null;
-        if (actuatorType !== null && typeof parsed?.state === 'boolean') {
-          this.actuatorStatusCache[actuatorType] = { state: parsed.state, receivedAt: Date.now() };
-        }
         // 상태 토픽만 DB에 반영 (Arduino 실상태가 소스 오브 트루스)
         await this.handleActuatorMessage(topic, parsed);
       } else if (topic.startsWith('smartfarm/actuators/')) {
@@ -219,54 +210,6 @@ class MQTTClientManager {
     } catch (error) {
       console.error(`[MQTT] 메시지 처리 오류 (${topic}):`, error);
     }
-  }
-
-  async fetchActuatorStatusOnce(
-    actuatorType: 'led' | 'pump' | 'fan1' | 'fan2',
-    timeoutMs = 1500
-  ): Promise<boolean | null> {
-    if (!this.client?.connected) {
-      await this.connect();
-    }
-    const client = this.client;
-    if (!client) return null;
-
-    const topic = `smartfarm/actuator-status/${actuatorType}` as const;
-
-    // 캐시가 아주 최근이면 그대로 사용
-    const cached = this.actuatorStatusCache[actuatorType];
-    if (cached && Date.now() - cached.receivedAt < 1500) {
-      return cached.state;
-    }
-
-    // retained 포함 첫 메시지 1개만 기다림
-    await new Promise<void>((resolve) => {
-      client.subscribe(topic, { qos: 1 }, () => resolve());
-    });
-
-    return await new Promise<boolean | null>((resolve) => {
-      const t = setTimeout(() => {
-        client.off('message', onMsg);
-        resolve(null);
-      }, timeoutMs);
-
-      const onMsg = (tpc: string, buf: Buffer) => {
-        if (tpc !== topic) return;
-        try {
-          const parsed = JSON.parse(buf.toString());
-          if (typeof parsed?.state === 'boolean') {
-            clearTimeout(t);
-            client.off('message', onMsg);
-            this.actuatorStatusCache[actuatorType] = { state: parsed.state, receivedAt: Date.now() };
-            resolve(parsed.state);
-          }
-        } catch {
-          // ignore
-        }
-      };
-
-      client.on('message', onMsg);
-    });
   }
 
   /**
