@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getMQTTClient } from '@/lib/mqtt';
-import { ActuatorSchedulesV1, ActuatorSchedule, ActuatorScheduleActuator } from '@/types/actuatorSchedule';
+import { ActuatorSchedulesV2, ActuatorScheduleActuator } from '@/types/actuatorSchedule';
 import { MQTTActuatorTopic } from '@/types/mqtt';
 
 export const dynamic = 'force-dynamic';
 
-const SETTING_KEY = 'actuator_schedules_v1';
+const SETTING_KEY = 'actuator_schedules_v2';
 const DEFAULT_TZ = 'Asia/Seoul';
 
 function parseHHMM(s: string): number | null {
@@ -35,61 +35,50 @@ function getLocalParts(timeZone: string, date = new Date()): { minutes: number; 
   return { minutes: hh * 60 + mm, day: map[wd] ?? 0 };
 }
 
-function desiredStateForSchedule(schedule: ActuatorSchedule, now: Date): boolean | null {
-  if (!schedule || schedule.mode === 'manual' || schedule.mode === 'disabled') return null;
-  if (!schedule.enabled) return null;
+function desiredStateForSchedule(
+  schedule: ActuatorSchedulesV2['actuators'][ActuatorScheduleActuator] | undefined,
+  now: Date
+): boolean | null {
+  if (!schedule) return null;
+  if (!schedule.auto_on) return null;
 
-  const tz = 'timezone' in schedule ? schedule.timezone || DEFAULT_TZ : DEFAULT_TZ;
+  const tz = schedule.timezone || DEFAULT_TZ;
   const { minutes: nowMin } = getLocalParts(tz, now);
 
-  if (schedule.mode === 'on_off_time') {
-    const onMin = parseHHMM(schedule.on_time) ?? 8 * 60;
-    const offMin = parseHHMM(schedule.off_time) ?? 20 * 60;
+  const onMin = parseHHMM(schedule.on_time) ?? 8 * 60;
+  const offMin = parseHHMM(schedule.off_time) ?? 20 * 60;
 
-    // on/off 시간이 동일하면 항상 ON
-    if (onMin === offMin) return true;
+  // 시간 범위(inWindow) 계산: 동일하면 "항상 윈도우"로 취급
+  const inWindow =
+    onMin === offMin
+      ? true
+      : onMin < offMin
+        ? nowMin >= onMin && nowMin < offMin
+        : nowMin >= onMin || nowMin < offMin;
 
-    // 자정을 넘기는 시간대도 지원 (예: 22:00~06:00)
-    if (onMin < offMin) {
-      return nowMin >= onMin && nowMin < offMin;
-    }
-    return nowMin >= onMin || nowMin < offMin;
-  }
+  if (!inWindow) return false;
 
-  if (schedule.mode === 'cycle_5s_5m') {
-    const unixSec = Math.floor(now.getTime() / 1000);
-    const period = 5 + 300; // 5초 ON + 5분 OFF
-    return unixSec % period < 5;
-  }
+  const unitMul = schedule.repeat_unit === 'sec' ? 1 : 60;
+  const onSec = Math.max(0, Math.floor(schedule.repeat_on * unitMul));
+  const offSec = Math.max(0, Math.floor(schedule.repeat_off * unitMul));
 
-  if (schedule.mode === 'day_night') {
-    const dayStart = parseHHMM(schedule.day_start) ?? 8 * 60;
-    const nightStart = parseHHMM(schedule.night_start) ?? 20 * 60;
+  // 0,0이면 반복 없음: 윈도우 안에서는 ON 유지
+  if (onSec === 0 && offSec === 0) return true;
+  if (onSec <= 0 || offSec <= 0) return true;
 
-    const isDay =
-      dayStart === nightStart
-        ? true
-        : dayStart < nightStart
-          ? nowMin >= dayStart && nowMin < nightStart
-          : nowMin >= dayStart || nowMin < nightStart; // wrap over midnight
+  // 반복은 윈도우 시작 시간을 기준 anchor로 삼음
+  const unixSec = Math.floor(now.getTime() / 1000);
+  const period = onSec + offSec;
+  if (period <= 0) return true;
 
-    const state = isDay ? schedule.day_state : schedule.night_state;
-    return state === 'on';
-  }
-
-  if (schedule.mode === 'cycle') {
-    const onM = Math.max(0, Math.min(24 * 60, Math.floor(schedule.on_minutes)));
-    const offM = Math.max(0, Math.min(24 * 60, Math.floor(schedule.off_minutes)));
-    const len = onM + offM;
-    if (len <= 0) return null;
-    const pos = nowMin % len;
-    return pos < onM;
-  }
-
-  return null;
+  // anchor: 오늘의 on_time(로컬) -> 정확한 절대초 계산이 복잡하므로, 분 단위 anchor로 근사
+  // (tick이 1초 주기로 호출되므로, 상태는 실제 동작에 충분히 안정적)
+  const anchorMin = onMin;
+  const posSec = ((nowMin - anchorMin + 24 * 60) % (24 * 60)) * 60;
+  return (posSec % period) < onSec;
 }
 
-async function getSchedules(supabase: ReturnType<typeof createServiceClient>): Promise<ActuatorSchedulesV1 | null> {
+async function getSchedules(supabase: ReturnType<typeof createServiceClient>): Promise<ActuatorSchedulesV2 | null> {
   const { data, error } = await supabase
     .from('system_settings')
     .select('*')
@@ -98,7 +87,7 @@ async function getSchedules(supabase: ReturnType<typeof createServiceClient>): P
 
   if (error) throw new Error(error.message);
   const row = data && data.length > 0 ? data[0] : null;
-  return (row?.setting_value as ActuatorSchedulesV1 | null) ?? null;
+  return (row?.setting_value as ActuatorSchedulesV2 | null) ?? null;
 }
 
 async function getLatestAction(

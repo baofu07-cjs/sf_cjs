@@ -1,84 +1,104 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { ActuatorSchedulesV1 } from '@/types/actuatorSchedule';
+import { ActuatorSchedulesV2 } from '@/types/actuatorSchedule';
 
 export const dynamic = 'force-dynamic';
 
-const SETTING_KEY = 'actuator_schedules_v1';
+const SETTING_KEY_V1 = 'actuator_schedules_v1';
+const SETTING_KEY_V2 = 'actuator_schedules_v2';
+const DEFAULT_TZ = 'Asia/Seoul';
 
-function defaultSchedules(): ActuatorSchedulesV1 {
+function defaultSchedules(): ActuatorSchedulesV2 {
   const now = new Date().toISOString();
   return {
-    version: 1,
+    version: 2,
     updated_at: now,
     actuators: {
-      led: {
-        mode: 'manual',
-        enabled: false,
-      },
-      pump: {
-        mode: 'manual',
-        enabled: false,
-      },
-      fan1: {
-        mode: 'manual',
-        enabled: false,
-      },
-      fan2: {
-        mode: 'manual',
-        enabled: false,
-      },
+      led: { auto_on: false, timezone: DEFAULT_TZ, on_time: '08:00', off_time: '20:00', repeat_on: 0, repeat_off: 0, repeat_unit: 'min' },
+      pump: { auto_on: false, timezone: DEFAULT_TZ, on_time: '08:00', off_time: '20:00', repeat_on: 0, repeat_off: 0, repeat_unit: 'min' },
+      fan1: { auto_on: false, timezone: DEFAULT_TZ, on_time: '08:00', off_time: '20:00', repeat_on: 0, repeat_off: 0, repeat_unit: 'min' },
+      fan2: { auto_on: false, timezone: DEFAULT_TZ, on_time: '08:00', off_time: '20:00', repeat_on: 0, repeat_off: 0, repeat_unit: 'min' },
     },
   };
 }
 
-function migrateLegacyModes(data: ActuatorSchedulesV1): ActuatorSchedulesV1 {
-  const migrated: ActuatorSchedulesV1 = JSON.parse(JSON.stringify(data));
+function migrateV1ToV2(v1: any): ActuatorSchedulesV2 {
+  const base = defaultSchedules();
+  const next: ActuatorSchedulesV2 = JSON.parse(JSON.stringify(base));
+
   (['led', 'pump', 'fan1', 'fan2'] as const).forEach((k) => {
-    const s = migrated.actuators[k] as any;
+    const s = v1?.actuators?.[k];
     if (!s) return;
-    if (s.mode === 'day_night') {
-      migrated.actuators[k] = {
-        mode: 'on_off_time',
-        enabled: s.enabled !== false,
-        timezone: s.timezone || 'Asia/Seoul',
-        on_time: s.day_start || '08:00',
-        off_time: s.night_start || '20:00',
-      } as any;
-    } else if (s.mode === 'cycle') {
-      migrated.actuators[k] = {
-        mode: 'cycle_5s_5m',
-        enabled: s.enabled !== false,
-        timezone: 'Asia/Seoul',
-      } as any;
-    } else if (s.mode === 'disabled') {
-      migrated.actuators[k] = { mode: 'manual', enabled: false } as any;
+
+    // 이전 구조에서 enabled=true인 경우만 auto_on으로 해석
+    const enabled = Boolean(s.enabled);
+    const tz = s.timezone || DEFAULT_TZ;
+
+    if (s.mode === 'on_off_time') {
+      next.actuators[k] = {
+        auto_on: enabled,
+        timezone: tz,
+        on_time: s.on_time || '08:00',
+        off_time: s.off_time || '20:00',
+        repeat_on: 0,
+        repeat_off: 0,
+        repeat_unit: 'min',
+      };
+      return;
     }
+
+    if (s.mode === 'cycle_5s_5m') {
+      next.actuators[k] = {
+        auto_on: enabled,
+        timezone: tz,
+        on_time: '00:00',
+        off_time: '00:00',
+        repeat_on: 5,
+        repeat_off: 5,
+        repeat_unit: 'min',
+      };
+      return;
+    }
+
+    // 그 외는 수동 시작으로 둠
+    next.actuators[k] = { ...base.actuators[k], auto_on: false, timezone: tz };
   });
-  return migrated;
+
+  next.updated_at = new Date().toISOString();
+  return next;
 }
 
 export async function GET(_request: NextRequest) {
   try {
     const supabase = createServiceClient();
+
+    // v2 우선 조회
     const { data, error } = await supabase
       .from('system_settings')
       .select('*')
-      .eq('setting_key', SETTING_KEY)
+      .in('setting_key', [SETTING_KEY_V2, SETTING_KEY_V1])
       .limit(1);
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    const row = data && data.length > 0 ? data[0] : null;
-    const value = (row?.setting_value as ActuatorSchedulesV1 | null) ?? null;
-    const normalized = value ? migrateLegacyModes(value) : defaultSchedules();
+    const rows = data || [];
+    const rowV2 = rows.find((r: any) => r.setting_key === SETTING_KEY_V2) ?? null;
+    const rowV1 = rows.find((r: any) => r.setting_key === SETTING_KEY_V1) ?? null;
+
+    const valueV2 = (rowV2?.setting_value as ActuatorSchedulesV2 | null) ?? null;
+    if (valueV2?.version === 2) {
+      return NextResponse.json({ success: true, data: valueV2, from_db: true });
+    }
+
+    const valueV1 = (rowV1?.setting_value as any) ?? null;
+    const normalized = valueV1 ? migrateV1ToV2(valueV1) : defaultSchedules();
 
     return NextResponse.json({
       success: true,
       data: normalized,
-      from_db: Boolean(value),
+      from_db: Boolean(valueV2 || valueV1),
     });
   } catch (e) {
     return NextResponse.json(
@@ -90,14 +110,14 @@ export async function GET(_request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as { data?: ActuatorSchedulesV1 };
+    const body = (await request.json()) as { data?: ActuatorSchedulesV2 };
     if (!body?.data) {
       return NextResponse.json({ success: false, error: 'data is required' }, { status: 400 });
     }
 
-    const next: ActuatorSchedulesV1 = {
+    const next: ActuatorSchedulesV2 = {
       ...body.data,
-      version: 1,
+      version: 2,
       updated_at: new Date().toISOString(),
     };
 
@@ -106,7 +126,7 @@ export async function POST(request: NextRequest) {
     // upsert by unique key
     const { error } = await supabase.from('system_settings').upsert(
       {
-        setting_key: SETTING_KEY,
+        setting_key: SETTING_KEY_V2,
         setting_value: next as unknown as any,
         updated_at: new Date().toISOString(),
       },

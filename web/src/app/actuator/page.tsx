@@ -1,32 +1,26 @@
 'use client';
 
 import ActuatorControl from '@/components/ActuatorControl';
-import ActuatorScheduleSettings from '@/components/ActuatorScheduleSettings';
 import { useActuatorControl } from '@/hooks/useActuatorControl';
+import { useActuatorSchedules } from '@/hooks/useActuatorSchedules';
+import { useEffect } from 'react';
 
 export default function ActuatorPage() {
   const { state, loading, controlActuator } = useActuatorControl();
+  const { data: schedules, saving: scheduleSaving, updateActuator, save, anyAutoOn } = useActuatorSchedules();
 
-  const disableScheduleFor = async (type: 'led' | 'pump' | 'fan1' | 'fan2') => {
-    try {
-      const res = await fetch('/api/actuator-schedules');
-      const json = await res.json();
-      if (!res.ok || !json.success) return;
-      const data = json.data;
-      data.actuators[type] = { mode: 'manual', enabled: false };
-      await fetch('/api/actuator-schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data }),
-      });
-    } catch (_) {
-      // ignore; manual control should still attempt
-    }
-  };
+  useEffect(() => {
+    if (!anyAutoOn) return;
+    const id = window.setInterval(() => {
+      fetch('/api/actuator-schedules/tick').catch(() => {});
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [anyAutoOn]);
 
   const handleToggle = async (type: 'led' | 'pump' | 'fan1' | 'fan2') => {
-    // 수동 조작 시 해당 포트 스케줄을 끄고(수동), 명령이 되돌아가지 않게 함
-    await disableScheduleFor(type);
+    // 수동 조작 시 자동을 끄고(수동 기준), 명령이 되돌아가지 않게 함
+    updateActuator(type, { auto_on: false });
+    await save();
     const action = state[type].enabled ? 'off' : 'on';
     await controlActuator(type, action);
   };
@@ -58,9 +52,6 @@ export default function ActuatorPage() {
 
           <div className="space-y-6">
             <div>
-              <div className="mb-6">
-                <ActuatorScheduleSettings />
-              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
                 <ActuatorControl
                   type="pump"
@@ -70,6 +61,14 @@ export default function ActuatorPage() {
                   enabled={state.pump.enabled}
                   loading={loading}
                   onToggle={() => handleToggle('pump')}
+                  schedule={schedules?.actuators.pump ?? null}
+                  scheduleSaving={scheduleSaving}
+                  onScheduleChange={(patch) => updateActuator('pump', patch)}
+                  onScheduleSave={async () => await save()}
+                  onAutoToggle={async (nextAutoOn) => {
+                    updateActuator('pump', { auto_on: nextAutoOn });
+                    await save();
+                  }}
                 />
                 <ActuatorControl
                   type="fan1"
@@ -79,6 +78,14 @@ export default function ActuatorPage() {
                   enabled={state.fan1.enabled}
                   loading={loading}
                   onToggle={() => handleToggle('fan1')}
+                  schedule={schedules?.actuators.fan1 ?? null}
+                  scheduleSaving={scheduleSaving}
+                  onScheduleChange={(patch) => updateActuator('fan1', patch)}
+                  onScheduleSave={async () => await save()}
+                  onAutoToggle={async (nextAutoOn) => {
+                    updateActuator('fan1', { auto_on: nextAutoOn });
+                    await save();
+                  }}
                 />
                 <ActuatorControl
                   type="fan2"
@@ -88,6 +95,14 @@ export default function ActuatorPage() {
                   enabled={state.fan2.enabled}
                   loading={loading}
                   onToggle={() => handleToggle('fan2')}
+                  schedule={schedules?.actuators.fan2 ?? null}
+                  scheduleSaving={scheduleSaving}
+                  onScheduleChange={(patch) => updateActuator('fan2', patch)}
+                  onScheduleSave={async () => await save()}
+                  onAutoToggle={async (nextAutoOn) => {
+                    updateActuator('fan2', { auto_on: nextAutoOn });
+                    await save();
+                  }}
                 />
                 <ActuatorControl
                   type="led"
@@ -97,6 +112,14 @@ export default function ActuatorPage() {
                   enabled={state.led.enabled}
                   loading={loading}
                   onToggle={() => handleToggle('led')}
+                  schedule={schedules?.actuators.led ?? null}
+                  scheduleSaving={scheduleSaving}
+                  onScheduleChange={(patch) => updateActuator('led', patch)}
+                  onScheduleSave={async () => await save()}
+                  onAutoToggle={async (nextAutoOn) => {
+                    updateActuator('led', { auto_on: nextAutoOn });
+                    await save();
+                  }}
                 />
               </div>
             </div>

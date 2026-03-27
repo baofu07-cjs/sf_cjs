@@ -7,8 +7,9 @@ import SensorHistoryTable from '@/components/SensorHistoryTable';
 import ActuatorControl from '@/components/ActuatorControl';
 import SystemStatus from '@/components/SystemStatus';
 import AlertMessage from '@/components/AlertMessage';
-import ActuatorScheduleSettings from '@/components/ActuatorScheduleSettings';
 import { useActuatorControl } from '@/hooks/useActuatorControl';
+import { useActuatorSchedules } from '@/hooks/useActuatorSchedules';
+import { useEffect } from 'react';
 
 // 기본 임계값 설정 (이미지 참고)
 const defaultThresholds = {
@@ -37,26 +38,19 @@ const defaultThresholds = {
 export default function DashboardPage() {
   const { temperature, humidity, ec, ph, loading, error } = useSensorData({ useRealtime: true });
   const { state: actuatorState, loading: actuatorLoading, controlActuator } = useActuatorControl();
+  const { data: schedules, saving: scheduleSaving, updateActuator, save, anyAutoOn } = useActuatorSchedules();
 
-  const disableScheduleFor = async (type: 'led' | 'pump' | 'fan1' | 'fan2') => {
-    try {
-      const res = await fetch('/api/actuator-schedules');
-      const json = await res.json();
-      if (!res.ok || !json.success) return;
-      const data = json.data;
-      data.actuators[type] = { mode: 'manual', enabled: false };
-      await fetch('/api/actuator-schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data }),
-      });
-    } catch (_) {
-      // ignore; manual control should still attempt
-    }
-  };
+  useEffect(() => {
+    if (!anyAutoOn) return;
+    const id = window.setInterval(() => {
+      fetch('/api/actuator-schedules/tick').catch(() => {});
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [anyAutoOn]);
 
   const handleActuatorToggle = async (type: 'led' | 'pump' | 'fan1' | 'fan2') => {
-    await disableScheduleFor(type);
+    updateActuator(type, { auto_on: false });
+    await save();
     const action = actuatorState[type].enabled ? 'off' : 'on';
     await controlActuator(type, action);
   };
@@ -234,9 +228,6 @@ export default function DashboardPage() {
 
           <div className="space-y-6">
             <div>
-              <div className="mb-6">
-                <ActuatorScheduleSettings />
-              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
                 <ActuatorControl
                   type="pump"
@@ -246,6 +237,14 @@ export default function DashboardPage() {
                   enabled={actuatorState.pump.enabled}
                   loading={actuatorLoading}
                   onToggle={() => handleActuatorToggle('pump')}
+                  schedule={schedules?.actuators.pump ?? null}
+                  scheduleSaving={scheduleSaving}
+                  onScheduleChange={(patch) => updateActuator('pump', patch)}
+                  onScheduleSave={async () => await save()}
+                  onAutoToggle={async (nextAutoOn) => {
+                    updateActuator('pump', { auto_on: nextAutoOn });
+                    await save();
+                  }}
                 />
                 <ActuatorControl
                   type="fan1"
@@ -255,6 +254,14 @@ export default function DashboardPage() {
                   enabled={actuatorState.fan1.enabled}
                   loading={actuatorLoading}
                   onToggle={() => handleActuatorToggle('fan1')}
+                  schedule={schedules?.actuators.fan1 ?? null}
+                  scheduleSaving={scheduleSaving}
+                  onScheduleChange={(patch) => updateActuator('fan1', patch)}
+                  onScheduleSave={async () => await save()}
+                  onAutoToggle={async (nextAutoOn) => {
+                    updateActuator('fan1', { auto_on: nextAutoOn });
+                    await save();
+                  }}
                 />
                 <ActuatorControl
                   type="fan2"
@@ -264,6 +271,14 @@ export default function DashboardPage() {
                   enabled={actuatorState.fan2.enabled}
                   loading={actuatorLoading}
                   onToggle={() => handleActuatorToggle('fan2')}
+                  schedule={schedules?.actuators.fan2 ?? null}
+                  scheduleSaving={scheduleSaving}
+                  onScheduleChange={(patch) => updateActuator('fan2', patch)}
+                  onScheduleSave={async () => await save()}
+                  onAutoToggle={async (nextAutoOn) => {
+                    updateActuator('fan2', { auto_on: nextAutoOn });
+                    await save();
+                  }}
                 />
                 <ActuatorControl
                   type="led"
@@ -273,6 +288,14 @@ export default function DashboardPage() {
                   enabled={actuatorState.led.enabled}
                   loading={actuatorLoading}
                   onToggle={() => handleActuatorToggle('led')}
+                  schedule={schedules?.actuators.led ?? null}
+                  scheduleSaving={scheduleSaving}
+                  onScheduleChange={(patch) => updateActuator('led', patch)}
+                  onScheduleSave={async () => await save()}
+                  onAutoToggle={async (nextAutoOn) => {
+                    updateActuator('led', { auto_on: nextAutoOn });
+                    await save();
+                  }}
                 />
               </div>
             </div>
