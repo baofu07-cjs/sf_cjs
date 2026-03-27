@@ -9,10 +9,10 @@ import {
 } from '@/types/actuatorSchedule';
 
 const ACTUATORS: Array<{ key: ActuatorScheduleActuator; label: string }> = [
-  { key: 'led', label: 'LED(7)' },
   { key: 'pump', label: '펌프(4)' },
   { key: 'fan1', label: '팬1(5)' },
   { key: 'fan2', label: '팬2(6)' },
+  { key: 'led', label: 'LED(7)' },
 ];
 
 function ensureDefaults(data: ActuatorSchedulesV1): ActuatorSchedulesV1 {
@@ -138,7 +138,8 @@ export default function ActuatorScheduleSettings() {
     };
 
     runTick();
-    const id = setInterval(runTick, 5000);
+    // 5초 ON 윈도우를 안정적으로 잡기 위해 1초 간격으로 평가
+    const id = setInterval(runTick, 1000);
     return () => clearInterval(id);
   }, [model]);
 

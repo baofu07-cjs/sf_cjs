@@ -44,15 +44,6 @@ export default function ActuatorPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
                 <ActuatorControl
-                  type="led"
-                  label="LED"
-                  icon="💡"
-                  color="#eab308"
-                  enabled={state.led.enabled}
-                  loading={loading}
-                  onToggle={() => handleToggle('led')}
-                />
-                <ActuatorControl
                   type="pump"
                   label="펌프"
                   icon="⚙️"
@@ -78,6 +69,15 @@ export default function ActuatorPage() {
                   enabled={state.fan2.enabled}
                   loading={loading}
                   onToggle={() => handleToggle('fan2')}
+                />
+                <ActuatorControl
+                  type="led"
+                  label="LED"
+                  icon="💡"
+                  color="#eab308"
+                  enabled={state.led.enabled}
+                  loading={loading}
+                  onToggle={() => handleToggle('led')}
                 />
               </div>
             </div>
