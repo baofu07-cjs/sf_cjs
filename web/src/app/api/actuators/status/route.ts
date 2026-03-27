@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
         .select('*')
         .eq('actuator_type', actuatorType)
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .limit(1);
 
       // .single() 대신 배열의 첫 번째 요소 사용
@@ -45,9 +46,21 @@ export async function GET(request: NextRequest) {
             value: latestRecord.value,
           };
         } else {
-          // 다른 액츄에이터의 경우: 'off'이면 disabled, 'on'이면 enabled
+          // 다른 액츄에이터의 경우:
+          // - 'on'이면 enabled
+          // - 'off'이면 disabled
+          // - 'set'이면 value(0/1)로 판정
+          let isEnabled = false;
+          if (latestRecord.action === 'on') {
+            isEnabled = true;
+          } else if (latestRecord.action === 'off') {
+            isEnabled = false;
+          } else if (latestRecord.action === 'set') {
+            isEnabled = latestRecord.value !== null && latestRecord.value > 0;
+          }
+
           states[actuatorType] = {
-            enabled: latestRecord.action === 'on',
+            enabled: isEnabled,
             value: latestRecord.value,
           };
         }

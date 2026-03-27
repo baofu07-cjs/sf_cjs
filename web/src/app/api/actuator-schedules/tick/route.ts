@@ -90,6 +90,7 @@ async function getLatestAction(
     .select('*')
     .eq('actuator_type', actuatorType)
     .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
     .limit(1);
   if (error) return null;
   const row = data && data.length > 0 ? data[0] : null;
