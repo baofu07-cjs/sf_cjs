@@ -20,17 +20,40 @@ function ensureDefaults(data: ActuatorSchedulesV1): ActuatorSchedulesV1 {
     version: 1,
     updated_at: data.updated_at ?? new Date().toISOString(),
     actuators: {
-      led: { mode: 'disabled', enabled: false },
-      pump: { mode: 'disabled', enabled: false },
-      fan1: { mode: 'disabled', enabled: false },
-      fan2: { mode: 'disabled', enabled: false },
+      led: { mode: 'manual', enabled: false } as any,
+      pump: { mode: 'manual', enabled: false } as any,
+      fan1: { mode: 'manual', enabled: false } as any,
+      fan2: { mode: 'manual', enabled: false } as any,
     },
   };
-  return {
+  const merged = {
     ...base,
     ...data,
     actuators: { ...base.actuators, ...(data.actuators ?? {}) },
   };
+  // legacy mode migration for UI
+  (['led', 'pump', 'fan1', 'fan2'] as const).forEach((k) => {
+    const s = (merged.actuators as any)[k];
+    if (!s) return;
+    if (s.mode === 'day_night') {
+      (merged.actuators as any)[k] = {
+        mode: 'on_off_time',
+        enabled: s.enabled !== false,
+        timezone: s.timezone || 'Asia/Seoul',
+        on_time: s.day_start || '08:00',
+        off_time: s.night_start || '20:00',
+      };
+    } else if (s.mode === 'cycle') {
+      (merged.actuators as any)[k] = {
+        mode: 'cycle_5s_5m',
+        enabled: s.enabled !== false,
+        timezone: s.timezone || 'Asia/Seoul',
+      };
+    } else if (s.mode === 'disabled') {
+      (merged.actuators as any)[k] = { mode: 'manual', enabled: false };
+    }
+  });
+  return merged;
 }
 
 export default function ActuatorScheduleSettings() {
@@ -43,7 +66,6 @@ export default function ActuatorScheduleSettings() {
   const model = useMemo(() => (data ? ensureDefaults(data) : null), [data]);
 
   useEffect(() => {
-    if (!open) return;
     let cancelled = false;
     (async () => {
       try {
@@ -62,7 +84,7 @@ export default function ActuatorScheduleSettings() {
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, []);
 
   const updateActuator = (a: ActuatorScheduleActuator, next: ActuatorSchedule) => {
     setData((prev) => {
@@ -81,7 +103,7 @@ export default function ActuatorScheduleSettings() {
     });
   };
 
-  const applyPreset = (a: ActuatorScheduleActuator, preset: 'on_off_8_20' | 'cycle_1_30') => {
+  const applyPreset = (a: ActuatorScheduleActuator, preset: 'on_off_8_20' | 'cycle_5s_5m') => {
     if (preset === 'on_off_8_20') {
       updateActuator(a, {
         mode: 'on_off_time',
@@ -92,14 +114,33 @@ export default function ActuatorScheduleSettings() {
       });
     } else {
       updateActuator(a, {
-        mode: 'cycle',
+        mode: 'cycle_5s_5m',
         enabled: true,
         timezone: 'Asia/Seoul',
-        on_minutes: 1,
-        off_minutes: 30,
       });
     }
   };
+
+  useEffect(() => {
+    if (!model) return;
+    const hasAutoMode = ACTUATORS.some(({ key }) => {
+      const m = model.actuators[key].mode;
+      return m === 'on_off_time' || m === 'cycle_5s_5m';
+    });
+    if (!hasAutoMode) return;
+
+    const runTick = async () => {
+      try {
+        await fetch('/api/actuator-schedules/tick');
+      } catch (_) {
+        // ignore transient network/runtime errors
+      }
+    };
+
+    runTick();
+    const id = setInterval(runTick, 5000);
+    return () => clearInterval(id);
+  }, [model]);
 
   const save = async () => {
     if (!model) return;
@@ -137,7 +178,7 @@ export default function ActuatorScheduleSettings() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className="text-lg font-semibold text-gray-800">타임 설정</div>
-          <div className="text-xs text-gray-500">포트별 ON 시간 / OFF 시간 (투야 스위치 방식)</div>
+          <div className="text-xs text-gray-500">1) 수동 2) ON/OFF 시간 3) 5초ON/5분OFF</div>
         </div>
         <button
           onClick={() => setOpen((v) => !v)}
@@ -157,7 +198,7 @@ export default function ActuatorScheduleSettings() {
               {ACTUATORS.map(({ key, label }) => {
                 const s = model.actuators[key];
                 const mode: ActuatorScheduleMode = s.mode;
-                const modeForSelect: ActuatorScheduleMode = mode === 'day_night' ? 'on_off_time' : mode;
+                const modeForSelect: ActuatorScheduleMode = mode;
                 const enabled = (s as any).enabled === true;
 
                 return (
@@ -172,10 +213,10 @@ export default function ActuatorScheduleSettings() {
                           ON 08:00 / OFF 20:00
                         </button>
                         <button
-                          onClick={() => applyPreset(key, 'cycle_1_30')}
+                          onClick={() => applyPreset(key, 'cycle_5s_5m')}
                           className="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-50"
                         >
-                          1분ON/30분OFF
+                          5초ON/5분OFF
                         </button>
                       </div>
                     </div>
@@ -187,7 +228,7 @@ export default function ActuatorScheduleSettings() {
                           value={modeForSelect}
                           onChange={(e) => {
                             const m = e.target.value as ActuatorScheduleMode;
-                            if (m === 'disabled') updateActuator(key, { mode: 'disabled', enabled: false });
+                            if (m === 'manual') updateActuator(key, { mode: 'manual', enabled: false } as any);
                             else if (m === 'on_off_time')
                               updateActuator(key, {
                                 mode: 'on_off_time',
@@ -198,18 +239,16 @@ export default function ActuatorScheduleSettings() {
                               });
                             else
                               updateActuator(key, {
-                                mode: 'cycle',
+                                mode: 'cycle_5s_5m',
                                 enabled: true,
                                 timezone: 'Asia/Seoul',
-                                on_minutes: 1,
-                                off_minutes: 30,
                               });
                           }}
                           className="w-full border border-gray-300 rounded px-2 py-2"
                         >
-                          <option value="disabled">사용 안 함</option>
+                          <option value="manual">수동</option>
                           <option value="on_off_time">ON/OFF 시간</option>
-                          <option value="cycle">반복(ON/OFF)</option>
+                          <option value="cycle_5s_5m">5초ON/5분OFF</option>
                         </select>
                       </label>
 
@@ -222,7 +261,7 @@ export default function ActuatorScheduleSettings() {
                             if (s.mode === 'disabled') return;
                             updateActuator(key, { ...(s as any), enabled: en });
                           }}
-                          disabled={s.mode === 'disabled'}
+                          disabled={s.mode === 'manual'}
                           className="w-full border border-gray-300 rounded px-2 py-2 disabled:bg-gray-100"
                         >
                           <option value="on">ON</option>
@@ -244,11 +283,11 @@ export default function ActuatorScheduleSettings() {
                       </label>
                     </div>
 
-                    {(s.mode === 'on_off_time' || s.mode === 'day_night') && (
+                    {s.mode === 'on_off_time' && (
                       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {(() => {
-                          const onTime = s.mode === 'day_night' ? s.day_start : s.on_time;
-                          const offTime = s.mode === 'day_night' ? s.night_start : s.off_time;
+                          const onTime = s.on_time;
+                          const offTime = s.off_time;
                           return (
                             <>
                         <label className="text-sm">
@@ -291,30 +330,18 @@ export default function ActuatorScheduleSettings() {
                       </div>
                     )}
 
-                    {s.mode === 'cycle' && (
-                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {s.mode === 'cycle_5s_5m' && (
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <label className="text-sm">
-                          <div className="text-xs text-gray-500 mb-1">ON (분)</div>
+                          <div className="text-xs text-gray-500 mb-1">고정 반복</div>
                           <input
-                            type="number"
-                            value={s.on_minutes}
-                            onChange={(e) => updateActuator(key, { ...s, on_minutes: Number(e.target.value) })}
-                            className="w-full border border-gray-300 rounded px-2 py-2"
-                            min={0}
-                          />
-                        </label>
-                        <label className="text-sm">
-                          <div className="text-xs text-gray-500 mb-1">OFF (분)</div>
-                          <input
-                            type="number"
-                            value={s.off_minutes}
-                            onChange={(e) => updateActuator(key, { ...s, off_minutes: Number(e.target.value) })}
-                            className="w-full border border-gray-300 rounded px-2 py-2"
-                            min={0}
+                            value="ON 5초 / OFF 5분"
+                            readOnly
+                            className="w-full border border-gray-300 rounded px-2 py-2 bg-gray-50"
                           />
                         </label>
                         <div className="text-xs text-gray-500 flex items-end">
-                          예: 1 / 30 = 1분 켜짐 → 30분 꺼짐 반복
+                          자동 실행 중 (5초 주기로 tick 평가)
                         </div>
                       </div>
                     )}
@@ -337,7 +364,7 @@ export default function ActuatorScheduleSettings() {
                   지금 실행(테스트)
                 </button>
                 <div className="text-xs text-gray-500">
-                  실제 자동실행은 `/api/actuator-schedules/tick`를 1분마다 호출해야 합니다.
+                  이 화면이 열려있는 동안 `/api/actuator-schedules/tick`가 자동 호출됩니다.
                 </div>
               </div>
             </>

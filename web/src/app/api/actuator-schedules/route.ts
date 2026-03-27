@@ -13,23 +13,49 @@ function defaultSchedules(): ActuatorSchedulesV1 {
     updated_at: now,
     actuators: {
       led: {
-        mode: 'on_off_time',
-        enabled: true,
-        timezone: 'Asia/Seoul',
-        on_time: '08:00',
-        off_time: '20:00',
+        mode: 'manual',
+        enabled: false,
       },
       pump: {
-        mode: 'on_off_time',
-        enabled: true,
-        timezone: 'Asia/Seoul',
-        on_time: '08:00',
-        off_time: '20:00',
+        mode: 'manual',
+        enabled: false,
       },
-      fan1: { mode: 'disabled', enabled: false },
-      fan2: { mode: 'disabled', enabled: false },
+      fan1: {
+        mode: 'manual',
+        enabled: false,
+      },
+      fan2: {
+        mode: 'manual',
+        enabled: false,
+      },
     },
   };
+}
+
+function migrateLegacyModes(data: ActuatorSchedulesV1): ActuatorSchedulesV1 {
+  const migrated: ActuatorSchedulesV1 = JSON.parse(JSON.stringify(data));
+  (['led', 'pump', 'fan1', 'fan2'] as const).forEach((k) => {
+    const s = migrated.actuators[k] as any;
+    if (!s) return;
+    if (s.mode === 'day_night') {
+      migrated.actuators[k] = {
+        mode: 'on_off_time',
+        enabled: s.enabled !== false,
+        timezone: s.timezone || 'Asia/Seoul',
+        on_time: s.day_start || '08:00',
+        off_time: s.night_start || '20:00',
+      } as any;
+    } else if (s.mode === 'cycle') {
+      migrated.actuators[k] = {
+        mode: 'cycle_5s_5m',
+        enabled: s.enabled !== false,
+        timezone: 'Asia/Seoul',
+      } as any;
+    } else if (s.mode === 'disabled') {
+      migrated.actuators[k] = { mode: 'manual', enabled: false } as any;
+    }
+  });
+  return migrated;
 }
 
 export async function GET(_request: NextRequest) {
@@ -47,10 +73,11 @@ export async function GET(_request: NextRequest) {
 
     const row = data && data.length > 0 ? data[0] : null;
     const value = (row?.setting_value as ActuatorSchedulesV1 | null) ?? null;
+    const normalized = value ? migrateLegacyModes(value) : defaultSchedules();
 
     return NextResponse.json({
       success: true,
-      data: value ?? defaultSchedules(),
+      data: normalized,
       from_db: Boolean(value),
     });
   } catch (e) {

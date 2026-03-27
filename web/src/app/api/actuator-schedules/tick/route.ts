@@ -36,7 +36,7 @@ function getLocalParts(timeZone: string, date = new Date()): { minutes: number; 
 }
 
 function desiredStateForSchedule(schedule: ActuatorSchedule, now: Date): boolean | null {
-  if (!schedule || schedule.mode === 'disabled') return null;
+  if (!schedule || schedule.mode === 'manual' || schedule.mode === 'disabled') return null;
   if (!schedule.enabled) return null;
 
   const tz = 'timezone' in schedule ? schedule.timezone || DEFAULT_TZ : DEFAULT_TZ;
@@ -54,6 +54,12 @@ function desiredStateForSchedule(schedule: ActuatorSchedule, now: Date): boolean
       return nowMin >= onMin && nowMin < offMin;
     }
     return nowMin >= onMin || nowMin < offMin;
+  }
+
+  if (schedule.mode === 'cycle_5s_5m') {
+    const unixSec = Math.floor(now.getTime() / 1000);
+    const period = 5 + 300; // 5초 ON + 5분 OFF
+    return unixSec % period < 5;
   }
 
   if (schedule.mode === 'day_night') {

@@ -1,7 +1,6 @@
 'use client';
 
 import ActuatorControl from '@/components/ActuatorControl';
-import OperatingMode from '@/components/OperatingMode';
 import ActuatorScheduleSettings from '@/components/ActuatorScheduleSettings';
 import { useActuatorControl } from '@/hooks/useActuatorControl';
 
@@ -38,10 +37,8 @@ export default function ActuatorPage() {
             <div className="h-1 w-24 bg-green-600 rounded-full"></div>
           </div>
 
-          {/* 운영모드 및 액츄에이터 제어 */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <OperatingMode />
-            <div className="lg:col-span-4">
+          <div className="space-y-6">
+            <div>
               <div className="mb-6">
                 <ActuatorScheduleSettings />
               </div>
