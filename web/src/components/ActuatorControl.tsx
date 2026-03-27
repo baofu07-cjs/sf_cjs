@@ -1,26 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { useActuatorControl } from '@/hooks/useActuatorControl';
 
 interface ActuatorControlProps {
   type: 'led' | 'pump' | 'fan1' | 'fan2';
   label: string;
   icon: string;
   color?: string; // 버튼 색상
+  enabled: boolean;
+  loading: boolean;
+  onToggle: () => Promise<void>;
 }
 
-export default function ActuatorControl({ type, label, icon, color }: ActuatorControlProps) {
-  const { state, loading, controlActuator } = useActuatorControl();
+export default function ActuatorControl({ type, label, icon, color, enabled, loading, onToggle }: ActuatorControlProps) {
   const [isControlling, setIsControlling] = useState(false);
 
-  const actuatorState = state[type];
-  const isEnabled = actuatorState.enabled;
+  const isEnabled = enabled;
 
   const handleToggle = async () => {
     setIsControlling(true);
-    const action = isEnabled ? 'off' : 'on';
-    await controlActuator(type, action);
+    await onToggle();
     setIsControlling(false);
   };
 

@@ -3,8 +3,16 @@
 import ActuatorControl from '@/components/ActuatorControl';
 import OperatingMode from '@/components/OperatingMode';
 import ActuatorScheduleSettings from '@/components/ActuatorScheduleSettings';
+import { useActuatorControl } from '@/hooks/useActuatorControl';
 
 export default function ActuatorPage() {
+  const { state, loading, controlActuator } = useActuatorControl();
+
+  const handleToggle = async (type: 'led' | 'pump' | 'fan1' | 'fan2') => {
+    const action = state[type].enabled ? 'off' : 'on';
+    await controlActuator(type, action);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -43,24 +51,36 @@ export default function ActuatorPage() {
                   label="LED"
                   icon="💡"
                   color="#eab308"
+                  enabled={state.led.enabled}
+                  loading={loading}
+                  onToggle={() => handleToggle('led')}
                 />
                 <ActuatorControl
                   type="pump"
                   label="펌프"
                   icon="⚙️"
                   color="#3b82f6"
+                  enabled={state.pump.enabled}
+                  loading={loading}
+                  onToggle={() => handleToggle('pump')}
                 />
                 <ActuatorControl
                   type="fan1"
                   label="팬 1"
                   icon="🔄"
                   color="#a3e635"
+                  enabled={state.fan1.enabled}
+                  loading={loading}
+                  onToggle={() => handleToggle('fan1')}
                 />
                 <ActuatorControl
                   type="fan2"
                   label="팬 2"
                   icon="🔄"
                   color="#a3e635"
+                  enabled={state.fan2.enabled}
+                  loading={loading}
+                  onToggle={() => handleToggle('fan2')}
                 />
               </div>
             </div>
