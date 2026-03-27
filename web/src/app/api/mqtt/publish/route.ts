@@ -34,6 +34,10 @@ export async function POST(request: NextRequest) {
       'smartfarm/actuators/fan1',
       'smartfarm/actuators/fan2',
       'smartfarm/actuators/all',
+      'smartfarm/actuator-status/led',
+      'smartfarm/actuator-status/pump',
+      'smartfarm/actuator-status/fan1',
+      'smartfarm/actuator-status/fan2',
       'smartfarm/status',
     ];
 

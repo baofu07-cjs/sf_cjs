@@ -171,6 +171,10 @@ class MQTTClientManager {
       'smartfarm/actuators/pump',
       'smartfarm/actuators/fan1',
       'smartfarm/actuators/fan2',
+      'smartfarm/actuator-status/led',
+      'smartfarm/actuator-status/pump',
+      'smartfarm/actuator-status/fan1',
+      'smartfarm/actuator-status/fan2',
       'smartfarm/status',
     ];
 
@@ -194,7 +198,7 @@ class MQTTClientManager {
 
       if (topic.startsWith('smartfarm/sensors/')) {
         await this.handleSensorMessage(topic, parsed);
-      } else if (topic.startsWith('smartfarm/actuators/')) {
+      } else if (topic.startsWith('smartfarm/actuators/') || topic.startsWith('smartfarm/actuator-status/')) {
         await this.handleActuatorMessage(topic, parsed);
       } else if (topic === 'smartfarm/status') {
         await this.handleStatusMessage(parsed);
@@ -254,7 +258,9 @@ class MQTTClientManager {
     topic: string,
     message: MQTTActuatorMessage
   ): Promise<void> {
-    const actuatorType = topic.split('/').pop() as 'led' | 'pump' | 'fan1' | 'fan2';
+    const last = topic.split('/').pop();
+    const actuatorType = (last === 'led' || last === 'pump' || last === 'fan1' || last === 'fan2') ? last : null;
+    if (!actuatorType) return;
     
     let action: 'on' | 'off' | 'set' = 'off';
     let value: number | null = null;

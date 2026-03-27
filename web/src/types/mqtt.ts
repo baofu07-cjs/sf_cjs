@@ -16,7 +16,13 @@ export type MQTTActuatorTopic =
   | 'smartfarm/actuators/fan2'
   | 'smartfarm/actuators/all';
 
-export type MQTTTopic = MQTTSensorTopic | MQTTActuatorTopic | 'smartfarm/status';
+export type MQTTActuatorStatusTopic =
+  | 'smartfarm/actuator-status/led'
+  | 'smartfarm/actuator-status/pump'
+  | 'smartfarm/actuator-status/fan1'
+  | 'smartfarm/actuator-status/fan2';
+
+export type MQTTTopic = MQTTSensorTopic | MQTTActuatorTopic | MQTTActuatorStatusTopic | 'smartfarm/status';
 
 export interface MQTTSensorMessage {
   sensor: 'temperature' | 'humidity' | 'ec' | 'ph';
