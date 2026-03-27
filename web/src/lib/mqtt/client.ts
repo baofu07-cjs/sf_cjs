@@ -198,8 +198,12 @@ class MQTTClientManager {
 
       if (topic.startsWith('smartfarm/sensors/')) {
         await this.handleSensorMessage(topic, parsed);
-      } else if (topic.startsWith('smartfarm/actuators/') || topic.startsWith('smartfarm/actuator-status/')) {
+      } else if (topic.startsWith('smartfarm/actuator-status/')) {
+        // 상태 토픽만 DB에 반영 (Arduino 실상태가 소스 오브 트루스)
         await this.handleActuatorMessage(topic, parsed);
+      } else if (topic.startsWith('smartfarm/actuators/')) {
+        // 제어 토픽은 DB 상태로 저장하지 않음 (수동 상태 되돌림/레이스 방지)
+        // 필요하면 별도 "명령 로그" 테이블로 저장하도록 분리한다.
       } else if (topic === 'smartfarm/status') {
         await this.handleStatusMessage(parsed);
       }

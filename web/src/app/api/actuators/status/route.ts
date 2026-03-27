@@ -31,6 +31,8 @@ export async function GET(request: NextRequest) {
         .from('actuator_control')
         .select('*')
         .eq('actuator_type', actuatorType)
+        // Arduino가 publish한 상태 기록(user_id null)만 상태로 사용
+        .is('user_id', null)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
         .limit(1);
