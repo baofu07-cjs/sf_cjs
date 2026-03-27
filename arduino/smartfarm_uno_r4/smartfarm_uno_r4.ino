@@ -70,9 +70,9 @@ WiFiSSLClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
 // 전역 변수
-unsigned long lastSensorRead = 0;
-// 센서 읽기/발행 간격 (10분)
-const unsigned long sensorInterval = 10UL * 60UL * 1000UL;
+// 센서 변화 임계값
+const float TEMP_HUMIDITY_DELTA_THRESHOLD = 3.0f;
+const float EC_PH_DELTA_THRESHOLD = 0.3f;
 
 // 릴레이 상태/수동 제어 상태
 // - manualEnabled[i] == true 이면, 해당 릴레이는 자동제어보다 수동 상태를 우선 반영합니다.
@@ -82,6 +82,14 @@ bool manualState[4] = { false, false, false, false };
 // 자동제어에서 계산된 목표 상태
 bool autoState[4] = { false, false, false, false };
 bool relayState[4] = { false, false, false, false };
+const char* actuatorTopicsByRelay[4] = { "pump", "fan1", "fan2", "led" };
+
+// 마지막 발행 센서값 캐시 (threshold 비교용)
+bool hasPublishedSensorBaseline = false;
+float lastPublishedTemperature = 0.0f;
+float lastPublishedHumidity = 0.0f;
+float lastPublishedEc = 0.0f;
+float lastPublishedPh = 0.0f;
 
 const uint8_t relayPins[4] = { RELAY1_PIN, RELAY2_PIN, RELAY3_PIN, RELAY4_PIN };
 const uint8_t btnPins[4] = { BTN1_PIN, BTN2_PIN, BTN3_PIN, BTN4_PIN };
@@ -118,6 +126,8 @@ void lcdUpdateSensorCache(float t, float h, float ec, float ph);
 void lcdDrawCurrentPage();
 void lcdTickDisplay();
 bool readSensorValues(float& temperature, float& humidity, float& ec, float& ph);
+bool hasMeaningfulSensorChange(float current, float previous, float threshold);
+void publishActuatorState(uint8_t relayIndex, bool desiredOn);
 
 // 큰 숫자용 세그먼트 (CGRAM 0~7, Ronivaldo / Michael Pilcher 계열 패턴)
 // 주의: LiquidCrystal_I2C::createChar()가 const 포인터를 받지 않는 구현이 있어
@@ -227,12 +237,10 @@ void loop() {
   // 자동제어(순차 ON/OFF) + 수동 우선 반영
   updateAutomationAndRelays();
 
-  // 정기적으로 센서 데이터 읽기 및 발행
+  // 시간 간격 반복 없이, 변화 임계값을 만족할 때만 발행
+  readAndPublishSensors();
+
   unsigned long currentMillis = millis();
-  if (currentMillis - lastSensorRead >= sensorInterval) {
-    lastSensorRead = currentMillis;
-    readAndPublishSensors();
-  }
 
   // LCD: 표시용 센서 값 갱신 (MQTT 발행 주기와 별도)
   if (currentMillis - lastLcdSensorMs >= LCD_SENSOR_REFRESH_MS) {
@@ -659,6 +667,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
 // 릴레이 물리 출력 반영
 void writeRelay(uint8_t relayIndex, bool desiredOn) {
+  bool wasOn = relayState[relayIndex];
+
   // desiredOn: 논리적 ON(=릴레이 동작) 여부
   bool level;
   if (RELAY_ACTIVE_LOW) {
@@ -670,6 +680,11 @@ void writeRelay(uint8_t relayIndex, bool desiredOn) {
   }
   digitalWrite(relayPins[relayIndex], level);
   relayState[relayIndex] = desiredOn;
+
+  // 실제 상태가 바뀐 경우에만 액추에이터 상태를 MQTT로 발행
+  if (wasOn != desiredOn) {
+    publishActuatorState(relayIndex, desiredOn);
+  }
 }
 
 // 수동/ MQTT 명령으로 릴레이를 고정 제어 (auto는 해당 채널에서 무시)
@@ -886,33 +901,78 @@ void readAndPublishSensors() {
 
   unsigned long timestamp = millis() / 600000;  // 초 단위 타임스탬프
 
-  // 개별 센서 데이터 발행
-  publishSensorData("temperature", temperature, "°C", timestamp);
-  delay(100);
-  publishSensorData("humidity", humidity, "%", timestamp);
-  delay(100);
-  publishSensorData("ec", ec, "mS/cm", timestamp);
-  delay(100);
-  publishSensorData("ph", ph, "pH", timestamp);
+  bool temperatureChanged = !hasPublishedSensorBaseline ||
+    hasMeaningfulSensorChange(temperature, lastPublishedTemperature, TEMP_HUMIDITY_DELTA_THRESHOLD);
+  bool humidityChanged = !hasPublishedSensorBaseline ||
+    hasMeaningfulSensorChange(humidity, lastPublishedHumidity, TEMP_HUMIDITY_DELTA_THRESHOLD);
+  bool ecChanged = !hasPublishedSensorBaseline ||
+    hasMeaningfulSensorChange(ec, lastPublishedEc, EC_PH_DELTA_THRESHOLD);
+  bool phChanged = !hasPublishedSensorBaseline ||
+    hasMeaningfulSensorChange(ph, lastPublishedPh, EC_PH_DELTA_THRESHOLD);
 
-  // 모든 센서 데이터 통합 발행
-  delay(100);
+  bool anyChanged = temperatureChanged || humidityChanged || ecChanged || phChanged;
+  if (!anyChanged) {
+    return;
+  }
+
+  // 변화가 있는 센서만 개별 발행
+  if (temperatureChanged) {
+    publishSensorData("temperature", temperature, "°C", timestamp);
+    delay(100);
+  }
+  if (humidityChanged) {
+    publishSensorData("humidity", humidity, "%", timestamp);
+    delay(100);
+  }
+  if (ecChanged) {
+    publishSensorData("ec", ec, "mS/cm", timestamp);
+    delay(100);
+  }
+  if (phChanged) {
+    publishSensorData("ph", ph, "pH", timestamp);
+    delay(100);
+  }
+
+  // 변화가 1개라도 있으면 통합 데이터 발행
   publishAllSensorData(temperature, humidity, ec, ph, timestamp);
 
-  // 시리얼 모니터 출력
-  Serial.println("--- 센서 데이터 ---");
-  Serial.print("온도 : ");
-  Serial.print(temperature);
-  Serial.println(" °C");
-  Serial.print("습도 : ");
-  Serial.print(humidity);
-  Serial.println(" %");
-  Serial.print("EC: ");
-  Serial.print(ec);
-  Serial.println(" mS/cm");
-  Serial.print("pH: ");
-  Serial.print(ph);
-  Serial.println(" pH");
+  // 마지막 발행값 갱신
+  lastPublishedTemperature = temperature;
+  lastPublishedHumidity = humidity;
+  lastPublishedEc = ec;
+  lastPublishedPh = ph;
+  hasPublishedSensorBaseline = true;
+
+  // 변화가 있는 항목만 시리얼 출력
+  Serial.println("--- 센서 데이터 변화 감지 ---");
+  if (temperatureChanged) {
+    Serial.print("온도 : ");
+    Serial.print(temperature);
+    Serial.println(" °C");
+  }
+  if (humidityChanged) {
+    Serial.print("습도 : ");
+    Serial.print(humidity);
+    Serial.println(" %");
+  }
+  if (ecChanged) {
+    Serial.print("EC: ");
+    Serial.print(ec);
+    Serial.println(" mS/cm");
+  }
+  if (phChanged) {
+    Serial.print("pH: ");
+    Serial.print(ph);
+    Serial.println(" pH");
+  }
+}
+
+bool hasMeaningfulSensorChange(float current, float previous, float threshold) {
+  float delta = current - previous;
+  if (delta < 0) {
+    delta = -delta;
+  }
+  return delta >= threshold;
 }
 
 /*
@@ -949,5 +1009,20 @@ void publishAllSensorData(float temperature, float humidity, float ec, float ph,
   serializeJson(doc, jsonBuffer); 
 
   mqttClient.publish("smartfarm/sensors/all", jsonBuffer);
+}
+
+void publishActuatorState(uint8_t relayIndex, bool desiredOn) {
+  if (!mqttClient.connected()) {
+    return;
+  }
+
+  StaticJsonDocument<100> doc;
+  doc["state"] = desiredOn;
+
+  char jsonBuffer[100];
+  serializeJson(doc, jsonBuffer);
+
+  String topic = "smartfarm/actuators/" + String(actuatorTopicsByRelay[relayIndex]);
+  mqttClient.publish(topic.c_str(), jsonBuffer);
 }
 
