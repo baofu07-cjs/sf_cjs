@@ -112,6 +112,9 @@ export function useActuatorControl(options: UseActuatorControlOptions = {}) {
     // 초기 로드
     fetchStatus();
 
+    // Realtime이 지연되거나 누락되는 경우를 대비해 주기적으로 폴링
+    const pollId = setInterval(fetchStatus, 2000);
+
     if (useRealtime) {
       // Supabase Realtime 구독 (PRD 요구사항)
       const channel = supabase
@@ -133,11 +136,16 @@ export function useActuatorControl(options: UseActuatorControlOptions = {}) {
       channelRef.current = channel;
 
       return () => {
+        clearInterval(pollId);
         if (channelRef.current) {
           supabase.removeChannel(channelRef.current);
         }
       };
     }
+
+    return () => {
+      clearInterval(pollId);
+    };
   }, [fetchStatus, useRealtime]);
 
   return {

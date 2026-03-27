@@ -61,6 +61,7 @@ export default function ActuatorScheduleSettings() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [data, setData] = useState<ActuatorSchedulesV1 | null>(null);
 
   const model = useMemo(() => (data ? ensureDefaults(data) : null), [data]);
@@ -148,6 +149,7 @@ export default function ActuatorScheduleSettings() {
     try {
       setSaving(true);
       setError(null);
+      setNotice(null);
       const res = await fetch('/api/actuator-schedules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -156,6 +158,7 @@ export default function ActuatorScheduleSettings() {
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || '저장 실패');
       setData(json.data);
+      setNotice(`저장 완료 (${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })})`);
     } catch (e) {
       setError(e instanceof Error ? e.message : '알 수 없는 오류');
     } finally {
@@ -166,9 +169,11 @@ export default function ActuatorScheduleSettings() {
   const runTickNow = async () => {
     try {
       setError(null);
+      setNotice(null);
       const res = await fetch('/api/actuator-schedules/tick');
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || '실행 실패');
+      setNotice(`테스트 실행 완료 (${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })})`);
     } catch (e) {
       setError(e instanceof Error ? e.message : '알 수 없는 오류');
     }
@@ -193,6 +198,7 @@ export default function ActuatorScheduleSettings() {
         <div className="mt-4 space-y-4">
           {loading && <div className="text-sm text-gray-600">불러오는 중...</div>}
           {error && <div className="text-sm text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded">{error}</div>}
+          {notice && <div className="text-sm text-green-800 bg-green-50 border border-green-200 px-3 py-2 rounded">{notice}</div>}
 
           {model && (
             <>
@@ -226,11 +232,10 @@ export default function ActuatorScheduleSettings() {
                       <label className="text-sm">
                         <div className="text-xs text-gray-500 mb-1">모드</div>
                         <select
-                          value={modeForSelect}
+                          value={modeForSelect === 'manual' ? 'on_off_time' : modeForSelect}
                           onChange={(e) => {
                             const m = e.target.value as ActuatorScheduleMode;
-                            if (m === 'manual') updateActuator(key, { mode: 'manual', enabled: false } as any);
-                            else if (m === 'on_off_time')
+                            if (m === 'on_off_time')
                               updateActuator(key, {
                                 mode: 'on_off_time',
                                 enabled: true,
@@ -247,28 +252,20 @@ export default function ActuatorScheduleSettings() {
                           }}
                           className="w-full border border-gray-300 rounded px-2 py-2"
                         >
-                          <option value="manual">수동</option>
                           <option value="on_off_time">ON/OFF 시간</option>
                           <option value="cycle_5s_5m">5초ON/5분OFF</option>
                         </select>
                       </label>
 
-                      <label className="text-sm">
-                        <div className="text-xs text-gray-500 mb-1">활성</div>
-                        <select
-                          value={enabled ? 'on' : 'off'}
-                          onChange={(e) => {
-                            const en = e.target.value === 'on';
-                            if (s.mode === 'disabled') return;
-                            updateActuator(key, { ...(s as any), enabled: en });
-                          }}
-                          disabled={s.mode === 'manual'}
-                          className="w-full border border-gray-300 rounded px-2 py-2 disabled:bg-gray-100"
+                      <div className="flex items-end">
+                        <button
+                          onClick={() => updateActuator(key, { mode: 'manual', enabled: false } as any)}
+                          className="w-full px-3 py-2 rounded border border-gray-300 text-sm hover:bg-gray-50"
+                          title="스케줄을 끄고 수동 제어만 사용"
                         >
-                          <option value="on">ON</option>
-                          <option value="off">OFF</option>
-                        </select>
-                      </label>
+                          스케줄 끄기(수동)
+                        </button>
+                      </div>
 
                       <label className="text-sm">
                         <div className="text-xs text-gray-500 mb-1">타임존</div>

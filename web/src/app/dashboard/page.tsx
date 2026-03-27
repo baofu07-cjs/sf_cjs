@@ -221,15 +221,6 @@ export default function DashboardPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
                 <ActuatorControl
-                  type="led"
-                  label="LED"
-                  icon="💡"
-                  color="#eab308"
-                  enabled={actuatorState.led.enabled}
-                  loading={actuatorLoading}
-                  onToggle={() => handleActuatorToggle('led')}
-                />
-                <ActuatorControl
                   type="pump"
                   label="펌프"
                   icon="⚙️"
@@ -255,6 +246,15 @@ export default function DashboardPage() {
                   enabled={actuatorState.fan2.enabled}
                   loading={actuatorLoading}
                   onToggle={() => handleActuatorToggle('fan2')}
+                />
+                <ActuatorControl
+                  type="led"
+                  label="LED"
+                  icon="💡"
+                  color="#eab308"
+                  enabled={actuatorState.led.enabled}
+                  loading={actuatorLoading}
+                  onToggle={() => handleActuatorToggle('led')}
                 />
               </div>
             </div>
