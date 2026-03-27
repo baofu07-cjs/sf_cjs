@@ -11,7 +11,7 @@ export default function ActuatorPage() {
         {/* 헤더 */}
         <div className="mb-8">
           <h1 className="text-5xl font-bold text-gray-900 mb-3">
-            ⚙️ 액츄에이터 제어 - test
+            ⚙️ 액츄에이터 제어
           </h1>
           <div className="text-xl text-gray-500 font-semibold">
             {new Date().toLocaleDateString('ko-KR', {
