@@ -472,6 +472,11 @@ void connectMQTT() {
       mqttClient.subscribe("smartfarm/actuators/all");
 
       Serial.println("MQTT 토픽 구독 완료");
+
+      // 연결 직후 현재 릴레이 상태를 한 번 발행(초기 상태 동기화)
+      for (uint8_t i = 0; i < 4; i++) {
+        publishActuatorState(i, relayState[i]);
+      }
     } else {
       Serial.print("연결 실패, rc=");
       Serial.print(mqttClient.state());

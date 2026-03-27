@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ActuatorType } from '@/types/actuator';
-import mqtt from 'mqtt';
 import { createServiceClient } from '@/lib/supabase/server';
+import { initMQTTClient } from '@/lib/mqtt';
 
 /**
  * 액츄에이터 현재 상태 조회 API
@@ -13,89 +13,17 @@ export const dynamic = 'force-dynamic';
 
 type ActuatorKey = 'led' | 'pump' | 'fan1' | 'fan2';
 
-async function readActuatorStatusFromMQTT(timeoutMs = 1500) {
-  const brokerUrl = process.env.MQTT_BROKER_URL;
-  const username = process.env.MQTT_USERNAME;
-  const password = process.env.MQTT_PASSWORD;
-  const clientId = `${process.env.MQTT_CLIENT_ID || 'smartfarm-web'}-status-${Date.now()}`;
-
-  if (!brokerUrl || !username || !password) {
-    throw new Error('MQTT env missing');
-  }
-
-  const topics: Record<ActuatorKey, string> = {
-    led: 'smartfarm/actuator-status/led',
-    pump: 'smartfarm/actuator-status/pump',
-    fan1: 'smartfarm/actuator-status/fan1',
-    fan2: 'smartfarm/actuator-status/fan2',
-  };
-
-  const got: Partial<Record<ActuatorKey, boolean>> = {};
-
-  const client = mqtt.connect(brokerUrl, {
-    clientId,
-    username,
-    password,
-    clean: true,
-    reconnectPeriod: 0,
-    connectTimeout: 8000,
-    keepalive: 30,
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error('mqtt connect timeout')), 9000);
-    client.once('connect', () => {
-      clearTimeout(t);
-      resolve();
-    });
-    client.once('error', (e) => {
-      clearTimeout(t);
-      reject(e);
-    });
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    client.subscribe(Object.values(topics), { qos: 1 }, (err) => (err ? reject(err) : resolve()));
-  });
-
-  await new Promise<void>((resolve) => {
-    const t = setTimeout(() => resolve(), timeoutMs);
-    const onMsg = (topic: string, payload: Buffer) => {
-      const key = (Object.keys(topics) as ActuatorKey[]).find((k) => topics[k] === topic);
-      if (!key) return;
-      try {
-        const parsed = JSON.parse(payload.toString());
-        if (typeof parsed?.state === 'boolean') {
-          got[key] = parsed.state;
-        }
-      } catch {
-        // ignore
-      }
-    };
-    client.on('message', onMsg);
-    setTimeout(() => {
-      client.off('message', onMsg);
-      clearTimeout(t);
-      resolve();
-    }, timeoutMs);
-  });
-
-  try {
-    client.end(true);
-  } catch {
-    // ignore
-  }
-
-  return { got };
-}
-
 export async function GET(request: NextRequest) {
   try {
-    const { got } = await readActuatorStatusFromMQTT(1200);
+    // 서버 프로세스가 살아있는 동안 MQTT 구독으로 DB가 최신 상태를 유지한다.
+    try {
+      await initMQTTClient();
+    } catch (_) {
+      // ignore
+    }
 
-    // MQTT에서 못 받은 포트는 DB 최신 상태로 보정 (fan2 등 일부 누락 케이스 대응)
     const supabase = createServiceClient();
-    const fillFromDb = async (k: ActuatorKey): Promise<boolean> => {
+    const readLatest = async (k: ActuatorKey): Promise<boolean> => {
       const { data } = await supabase
         .from('actuator_control')
         .select('action,value')
@@ -118,10 +46,10 @@ export async function GET(request: NextRequest) {
     };
 
     const states: Record<ActuatorKey, boolean> = {
-      led: typeof got.led === 'boolean' ? got.led : await fillFromDb('led'),
-      pump: typeof got.pump === 'boolean' ? got.pump : await fillFromDb('pump'),
-      fan1: typeof got.fan1 === 'boolean' ? got.fan1 : await fillFromDb('fan1'),
-      fan2: typeof got.fan2 === 'boolean' ? got.fan2 : await fillFromDb('fan2'),
+      led: await readLatest('led'),
+      pump: await readLatest('pump'),
+      fan1: await readLatest('fan1'),
+      fan2: await readLatest('fan2'),
     };
 
     return NextResponse.json({
@@ -141,7 +69,7 @@ export async function GET(request: NextRequest) {
           enabled: states.fan2,
         },
       },
-      from_mqtt: true,
+      from_db: true,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
