@@ -52,9 +52,13 @@ export function useActuatorSchedules() {
   const saveActuatorPatch = useCallback(
     async (
       actuator: ActuatorScheduleActuator,
-      patch: Partial<ActuatorSchedulesV2['actuators'][ActuatorScheduleActuator]>
+      patch: Partial<ActuatorSchedulesV2['actuators'][ActuatorScheduleActuator]>,
+      options?: { silent?: boolean }
     ) => {
-      setSavingBy((prev) => ({ ...prev, [actuator]: true }));
+      const silent = options?.silent === true;
+      if (!silent) {
+        setSavingBy((prev) => ({ ...prev, [actuator]: true }));
+      }
       try {
         const res0 = await fetch('/api/actuator-schedules', { cache: 'no-store' });
         const json0 = (await res0.json()) as ApiOk | ApiErr;
@@ -78,7 +82,9 @@ export function useActuatorSchedules() {
         setData(json.data);
         return true;
       } finally {
-        setSavingBy((prev) => ({ ...prev, [actuator]: false }));
+        if (!silent) {
+          setSavingBy((prev) => ({ ...prev, [actuator]: false }));
+        }
       }
     },
     []

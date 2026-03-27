@@ -50,7 +50,10 @@ export default function DashboardPage() {
 
   const handleActuatorToggle = async (type: 'led' | 'pump' | 'fan1' | 'fan2') => {
     updateActuator(type, { auto_on: false });
-    await saveActuatorPatch(type, { auto_on: false });
+    const ok = await saveActuatorPatch(type, { auto_on: false }, { silent: true });
+    if (!ok) {
+      await saveActuatorPatch(type, { auto_on: false }, { silent: true });
+    }
     const action = actuatorState[type].enabled ? 'off' : 'on';
     await controlActuator(type, action);
   };

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { ActuatorType } from '@/types/actuator';
+import { initMQTTClient } from '@/lib/mqtt';
 
 /**
  * 액츄에이터 현재 상태 조회 API
@@ -12,6 +13,14 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
+    // 폴링 요청이 들어올 때마다 MQTT 연결을 보장해
+    // 아두이노의 actuator-status 메시지가 DB에 저장되도록 유지
+    try {
+      await initMQTTClient();
+    } catch (_) {
+      // MQTT 연결 실패해도 상태 조회는 계속 진행
+    }
+
     const supabase = createServiceClient();
 
     const actuatorTypes: ActuatorType[] = ['led', 'pump', 'fan1', 'fan2'];

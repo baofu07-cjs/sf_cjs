@@ -20,7 +20,12 @@ export default function ActuatorPage() {
   const handleToggle = async (type: 'led' | 'pump' | 'fan1' | 'fan2') => {
     // 수동 조작 시 자동을 끄고(수동 기준), 명령이 되돌아가지 않게 함
     updateActuator(type, { auto_on: false }); // UI 즉시 반영
-    await saveActuatorPatch(type, { auto_on: false }); // 서버에 확정 저장
+    // 수동 조작은 "저장 버튼" UX와 분리 (silent 저장)
+    const ok = await saveActuatorPatch(type, { auto_on: false }, { silent: true });
+    if (!ok) {
+      // 한번 더 시도 (네트워크/레이스 대비)
+      await saveActuatorPatch(type, { auto_on: false }, { silent: true });
+    }
     const action = state[type].enabled ? 'off' : 'on';
     await controlActuator(type, action);
   };
