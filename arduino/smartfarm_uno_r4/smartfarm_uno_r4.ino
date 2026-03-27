@@ -875,6 +875,8 @@ void publishActuatorState(uint8_t relayIndex, bool desiredOn) {
 
   StaticJsonDocument<100> doc;
   doc["state"] = desiredOn;
+  // 서버가 잠깐 연결되더라도 마지막 상태를 받을 수 있게 retain 용도
+  doc["timestamp"] = (unsigned long)(millis() / 1000);
 
   char jsonBuffer[100];
   serializeJson(doc, jsonBuffer);
@@ -882,6 +884,7 @@ void publishActuatorState(uint8_t relayIndex, bool desiredOn) {
   // 제어 토픽(smartfarm/actuators/...)으로 다시 발행하면 자기 자신이 재수신하므로
   // 상태 전용 토픽으로 분리한다.
   String topic = "smartfarm/actuator-status/" + String(actuatorNamesByRelay[relayIndex]);
-  mqttClient.publish(topic.c_str(), jsonBuffer);
+  // retain=true: 새로 구독하는 서버/웹도 마지막 상태를 즉시 수신
+  mqttClient.publish(topic.c_str(), jsonBuffer, true);
 }
 

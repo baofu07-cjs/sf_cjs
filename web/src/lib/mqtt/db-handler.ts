@@ -36,6 +36,25 @@ export async function saveSensorData(data: SensorDataInsert): Promise<void> {
 export async function saveActuatorControl(data: ActuatorControlInsert): Promise<void> {
   try {
     const supabase = createServiceClient();
+
+    // retained 상태 메시지로 인해 동일 상태가 반복 저장되는 것을 방지
+    const { data: latest } = await supabase
+      .from('actuator_control')
+      .select('action,value,user_id')
+      .eq('actuator_type', data.actuator_type)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(1);
+    const prev = latest && latest.length > 0 ? (latest[0] as any) : null;
+    if (
+      prev &&
+      prev.user_id === null &&
+      (data.user_id ?? null) === null &&
+      prev.action === data.action &&
+      (prev.value ?? null) === (data.value ?? null)
+    ) {
+      return;
+    }
     
     const { error } = await supabase
       .from('actuator_control')

@@ -27,20 +27,41 @@ export async function GET(request: NextRequest) {
     const states: Record<string, { enabled: boolean; value: number | null }> = {};
 
     for (const actuatorType of actuatorTypes) {
-      const { data, error } = await supabase
+      // 1) Arduino 상태(user_id null) 우선
+      const { data: statusRows } = await supabase
         .from('actuator_control')
         .select('*')
         .eq('actuator_type', actuatorType)
-        // Arduino가 publish한 상태 기록(user_id null)만 상태로 사용
         .is('user_id', null)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
         .limit(1);
+      const statusLatest = statusRows && statusRows.length > 0 ? statusRows[0] : null;
 
-      // .single() 대신 배열의 첫 번째 요소 사용
-      const latestRecord = data && data.length > 0 ? data[0] : null;
+      // 2) 최근 수동 명령(user_id not null)이 더 최신이면, 상태가 아직 안 올라온 것으로 보고 임시로 표시
+      const { data: cmdRows } = await supabase
+        .from('actuator_control')
+        .select('*')
+        .eq('actuator_type', actuatorType)
+        .not('user_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(1);
+      const cmdLatest = cmdRows && cmdRows.length > 0 ? cmdRows[0] : null;
 
-      if (!error && latestRecord) {
+      const latestRecord = (() => {
+        if (!statusLatest && !cmdLatest) return null;
+        if (statusLatest && !cmdLatest) return statusLatest;
+        if (!statusLatest && cmdLatest) return cmdLatest;
+        const statusT = new Date(statusLatest!.created_at).getTime();
+        const cmdT = new Date(cmdLatest!.created_at).getTime();
+        // status가 없고 명령만 최신인 경우가 길게 유지되면 실제 반영 실패이므로,
+        // 명령 표시는 짧게(10초)만 허용하고 이후는 status 기준으로 되돌림
+        if (cmdT > statusT && Date.now() - cmdT < 10_000) return cmdLatest!;
+        return statusLatest!;
+      })();
+
+      if (latestRecord) {
         if (actuatorType === 'led') {
           // LED의 경우: 'off'이면 disabled, 'on' 또는 'set'이면 enabled
           let isEnabled = false;
