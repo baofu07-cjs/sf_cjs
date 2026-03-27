@@ -8,6 +8,18 @@ const SETTING_KEY_V1 = 'actuator_schedules_v1';
 const SETTING_KEY_V2 = 'actuator_schedules_v2';
 const DEFAULT_TZ = 'Asia/Seoul';
 
+function forceAllAutoOff(s: ActuatorSchedulesV2): ActuatorSchedulesV2 {
+  const next: ActuatorSchedulesV2 = JSON.parse(JSON.stringify(s));
+  (['led', 'pump', 'fan1', 'fan2'] as const).forEach((k) => {
+    if (next.actuators?.[k]) {
+      next.actuators[k].auto_on = false;
+    }
+  });
+  next.version = 2;
+  next.updated_at = new Date().toISOString();
+  return next;
+}
+
 function defaultSchedules(): ActuatorSchedulesV2 {
   const now = new Date().toISOString();
   return {
@@ -89,11 +101,24 @@ export async function GET(_request: NextRequest) {
 
     const valueV2 = (rowV2?.setting_value as ActuatorSchedulesV2 | null) ?? null;
     if (valueV2?.version === 2) {
-      return NextResponse.json({ success: true, data: valueV2, from_db: true });
+      const forced = forceAllAutoOff(valueV2);
+      // DB에 auto_on=true가 남아있으면 즉시 OFF로 덮어씀 (수동 기본 원칙)
+      const hadAnyAutoOn = (['led', 'pump', 'fan1', 'fan2'] as const).some((k) => Boolean(valueV2.actuators?.[k]?.auto_on));
+      if (hadAnyAutoOn) {
+        await supabase.from('system_settings').upsert(
+          {
+            setting_key: SETTING_KEY_V2,
+            setting_value: forced as unknown as any,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'setting_key' }
+        );
+      }
+      return NextResponse.json({ success: true, data: forced, from_db: true });
     }
 
     const valueV1 = (rowV1?.setting_value as any) ?? null;
-    const normalized = valueV1 ? migrateV1ToV2(valueV1) : defaultSchedules();
+    const normalized = forceAllAutoOff(valueV1 ? migrateV1ToV2(valueV1) : defaultSchedules());
 
     return NextResponse.json({
       success: true,
@@ -120,6 +145,7 @@ export async function POST(request: NextRequest) {
       version: 2,
       updated_at: new Date().toISOString(),
     };
+    const forced = forceAllAutoOff(next);
 
     const supabase = createServiceClient();
 
@@ -127,7 +153,7 @@ export async function POST(request: NextRequest) {
     const { error } = await supabase.from('system_settings').upsert(
       {
         setting_key: SETTING_KEY_V2,
-        setting_value: next as unknown as any,
+        setting_value: forced as unknown as any,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'setting_key' }
@@ -137,7 +163,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, data: next });
+    return NextResponse.json({ success: true, data: forced });
   } catch (e) {
     return NextResponse.json(
       { success: false, error: e instanceof Error ? e.message : 'unknown error' },

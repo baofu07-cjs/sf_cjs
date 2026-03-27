@@ -9,7 +9,6 @@ import SystemStatus from '@/components/SystemStatus';
 import AlertMessage from '@/components/AlertMessage';
 import { useActuatorControl } from '@/hooks/useActuatorControl';
 import { useActuatorSchedules } from '@/hooks/useActuatorSchedules';
-import { useEffect } from 'react';
 
 // 기본 임계값 설정 (이미지 참고)
 const defaultThresholds = {
@@ -39,14 +38,6 @@ export default function DashboardPage() {
   const { temperature, humidity, ec, ph, loading, error } = useSensorData({ useRealtime: true });
   const { state: actuatorState, loading: actuatorLoading, controlActuator } = useActuatorControl();
   const { data: schedules, savingBy, updateActuator, saveActuatorPatch, anyAutoOn } = useActuatorSchedules();
-
-  useEffect(() => {
-    if (!anyAutoOn) return;
-    const id = window.setInterval(() => {
-      fetch('/api/actuator-schedules/tick').catch(() => {});
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [anyAutoOn]);
 
   const handleActuatorToggle = async (type: 'led' | 'pump' | 'fan1' | 'fan2') => {
     updateActuator(type, { auto_on: false });

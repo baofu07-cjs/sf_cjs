@@ -3,19 +3,10 @@
 import ActuatorControl from '@/components/ActuatorControl';
 import { useActuatorControl } from '@/hooks/useActuatorControl';
 import { useActuatorSchedules } from '@/hooks/useActuatorSchedules';
-import { useEffect } from 'react';
 
 export default function ActuatorPage() {
   const { state, loading, controlActuator } = useActuatorControl();
   const { data: schedules, savingBy, updateActuator, saveAll, saveActuatorPatch, anyAutoOn } = useActuatorSchedules();
-
-  useEffect(() => {
-    if (!anyAutoOn) return;
-    const id = window.setInterval(() => {
-      fetch('/api/actuator-schedules/tick').catch(() => {});
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [anyAutoOn]);
 
   const handleToggle = async (type: 'led' | 'pump' | 'fan1' | 'fan2') => {
     // 수동 조작 시 자동을 끄고(수동 기준), 명령이 되돌아가지 않게 함
