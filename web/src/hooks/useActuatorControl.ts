@@ -72,32 +72,19 @@ export function useActuatorControl(options: UseActuatorControlOptions = {}) {
 
       console.log('[useActuatorControl] 제어 명령 성공:', { actuatorType, action, value });
 
-      // 제어 성공 시 즉시 로컬 상태 업데이트 (낙관적 업데이트)
-      setState((prev) => {
-        const updated = { ...prev };
-        
-        if (actuatorType === 'led') {
-          if (action === 'off') {
-            updated.led = { enabled: false, brightness: 0 };
-          } else if (action === 'on') {
-            updated.led = { enabled: true, brightness: prev.led.brightness || 100 };
-          } else if (action === 'set' && value !== undefined) {
-            updated.led = { enabled: value > 0, brightness: value };
-          }
-        } else if (actuatorType === 'pump') {
-          updated.pump = { enabled: action === 'on' };
-        } else if (actuatorType === 'fan1') {
-          updated.fan1 = { enabled: action === 'on' };
-        } else if (actuatorType === 'fan2') {
-          updated.fan2 = { enabled: action === 'on' };
+      // 아두이노 상태가 기준이므로, 명령 후 상태 확인(ACK)될 때까지 짧게 재조회
+      const desired = action === 'on' ? true : action === 'off' ? false : null;
+      const deadline = Date.now() + 4000;
+      while (Date.now() < deadline) {
+        await fetchStatus();
+        if (desired !== null) {
+          const current = state[actuatorType].enabled;
+          if (current === desired) break;
+        } else {
+          break;
         }
-        
-        return updated;
-      });
-
-      // Realtime 구독이 자동으로 상태를 업데이트하므로 
-      // 명시적인 fetchStatus() 호출은 제거
-      // (명시적 호출 시 DB의 이전 상태가 반영되어 버튼이 되돌아가는 문제 방지)
+        await new Promise((r) => setTimeout(r, 250));
+      }
       
       return { success: true };
     } catch (err) {
@@ -106,7 +93,7 @@ export function useActuatorControl(options: UseActuatorControlOptions = {}) {
         error: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.',
       };
     }
-  }, []);
+  }, [fetchStatus, state]);
 
   useEffect(() => {
     // 초기 로드
