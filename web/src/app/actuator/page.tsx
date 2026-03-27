@@ -7,7 +7,26 @@ import { useActuatorControl } from '@/hooks/useActuatorControl';
 export default function ActuatorPage() {
   const { state, loading, controlActuator } = useActuatorControl();
 
+  const disableScheduleFor = async (type: 'led' | 'pump' | 'fan1' | 'fan2') => {
+    try {
+      const res = await fetch('/api/actuator-schedules');
+      const json = await res.json();
+      if (!res.ok || !json.success) return;
+      const data = json.data;
+      data.actuators[type] = { mode: 'manual', enabled: false };
+      await fetch('/api/actuator-schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data }),
+      });
+    } catch (_) {
+      // ignore; manual control should still attempt
+    }
+  };
+
   const handleToggle = async (type: 'led' | 'pump' | 'fan1' | 'fan2') => {
+    // 수동 조작 시 해당 포트 스케줄을 끄고(수동), 명령이 되돌아가지 않게 함
+    await disableScheduleFor(type);
     const action = state[type].enabled ? 'off' : 'on';
     await controlActuator(type, action);
   };

@@ -38,7 +38,25 @@ export default function DashboardPage() {
   const { temperature, humidity, ec, ph, loading, error } = useSensorData({ useRealtime: true });
   const { state: actuatorState, loading: actuatorLoading, controlActuator } = useActuatorControl();
 
+  const disableScheduleFor = async (type: 'led' | 'pump' | 'fan1' | 'fan2') => {
+    try {
+      const res = await fetch('/api/actuator-schedules');
+      const json = await res.json();
+      if (!res.ok || !json.success) return;
+      const data = json.data;
+      data.actuators[type] = { mode: 'manual', enabled: false };
+      await fetch('/api/actuator-schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data }),
+      });
+    } catch (_) {
+      // ignore; manual control should still attempt
+    }
+  };
+
   const handleActuatorToggle = async (type: 'led' | 'pump' | 'fan1' | 'fan2') => {
+    await disableScheduleFor(type);
     const action = actuatorState[type].enabled ? 'off' : 'on';
     await controlActuator(type, action);
   };
