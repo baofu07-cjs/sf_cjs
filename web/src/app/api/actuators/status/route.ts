@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { ActuatorType } from '@/types/actuator';
 import { initMQTTClient } from '@/lib/mqtt';
+import { getMQTTClient } from '@/lib/mqtt';
 
 /**
  * 액츄에이터 현재 상태 조회 API
@@ -27,6 +28,22 @@ export async function GET(request: NextRequest) {
     const states: Record<string, { enabled: boolean; value: number | null }> = {};
 
     for (const actuatorType of actuatorTypes) {
+      // MQTT retained 상태를 즉시 읽어오면(DB 저장 지연/서버리스 레이스 없이) 수동 UI가 되돌아가지 않음
+      try {
+        const mqtt = getMQTTClient();
+        const s = await mqtt.fetchActuatorStatusOnce(actuatorType, 1200);
+        if (typeof s === 'boolean') {
+          if (actuatorType === 'led') {
+            states[actuatorType] = { enabled: s, value: s ? 100 : 0 };
+          } else {
+            states[actuatorType] = { enabled: s, value: null };
+          }
+          continue;
+        }
+      } catch (_) {
+        // ignore and fallback to DB
+      }
+
       // 1) Arduino 상태(user_id null) 우선
       const { data: statusRows } = await supabase
         .from('actuator_control')
