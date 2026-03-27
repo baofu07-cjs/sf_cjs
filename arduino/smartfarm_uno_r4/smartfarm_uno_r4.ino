@@ -33,6 +33,7 @@
 // 1602 LCD I2C (필요 시 0x3F 로 변경)
 #define LCD_I2C_ADDR 0x27
 LiquidCrystal_I2C lcd(LCD_I2C_ADDR, 16, 2);
+#include "lcd_big_digits.h"
 
 // WiFi 설정 (사용자의 WiFi 정보로 변경 필요)
 const char* ssid = "daesin_302";
@@ -124,53 +125,12 @@ unsigned long lastLcdDrawMs = 0;
 const unsigned long LCD_DRAW_MS = 500;
 
 void lcdSetup();
-void lcdInitBigDigitChars();
 void lcdUpdateSensorCache(float t, float h, float ec, float ph);
 void lcdDrawCurrentPage();
 void lcdTickDisplay();
 bool readSensorValues(float& temperature, float& humidity, float& ec, float& ph);
 bool hasMeaningfulSensorChange(float current, float previous, float threshold);
 void publishActuatorState(uint8_t relayIndex, bool desiredOn);
-
-// 큰 숫자용 세그먼트 (CGRAM 0~7, Ronivaldo / Michael Pilcher 계열 패턴)
-// 주의: LiquidCrystal_I2C::createChar()가 const 포인터를 받지 않는 구현이 있어
-// const를 제거해(=RAM 배열) 호환성을 확보합니다.
-static uint8_t LCD_BIG_BAR1[8] = { 0x1C, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1E, 0x1C };
-static uint8_t LCD_BIG_BAR2[8] = { 0x07, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x07 };
-static uint8_t LCD_BIG_BAR3[8] = { 0x1F, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x1F, 0x1F };
-static uint8_t LCD_BIG_BAR4[8] = { 0x1E, 0x1C, 0x00, 0x00, 0x00, 0x00, 0x18, 0x1C };
-static uint8_t LCD_BIG_BAR5[8] = { 0x0F, 0x07, 0x00, 0x00, 0x00, 0x00, 0x03, 0x07 };
-static uint8_t LCD_BIG_BAR6[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F, 0x1F };
-static uint8_t LCD_BIG_BAR7[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x0F };
-static uint8_t LCD_BIG_BAR8[8] = { 0x1F, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-
-static void lcdBigDigit0(int col);
-static void lcdBigDigit1(int col);
-static void lcdBigDigit2(int col);
-static void lcdBigDigit3(int col);
-static void lcdBigDigit4(int col);
-static void lcdBigDigit5(int col);
-static void lcdBigDigit6(int col);
-static void lcdBigDigit7(int col);
-static void lcdBigDigit8(int col);
-static void lcdBigDigit9(int col);
-
-static void lcdPrintBigDigit(uint8_t d, int col) {
-  void (*const fn[10])(int) = {
-    lcdBigDigit0, lcdBigDigit1, lcdBigDigit2, lcdBigDigit3, lcdBigDigit4,
-    lcdBigDigit5, lcdBigDigit6, lcdBigDigit7, lcdBigDigit8, lcdBigDigit9
-  };
-  if (d < 10) {
-    fn[d](col);
-  }
-}
-
-static void lcdClearBigCell(int col) {
-  lcd.setCursor(col, 0);
-  lcd.print(F("   "));
-  lcd.setCursor(col, 1);
-  lcd.print(F("   "));
-}
 
 void setup() {
   Serial.begin(115200);
@@ -276,16 +236,6 @@ void lcdSetup() {
   lcd.print("                ");
 }
 
-void lcdInitBigDigitChars() {
-  lcd.createChar(0, LCD_BIG_BAR1);
-  lcd.createChar(1, LCD_BIG_BAR2);
-  lcd.createChar(2, LCD_BIG_BAR3);
-  lcd.createChar(3, LCD_BIG_BAR4);
-  lcd.createChar(4, LCD_BIG_BAR5);
-  lcd.createChar(5, LCD_BIG_BAR6);
-  lcd.createChar(6, LCD_BIG_BAR7);
-  lcd.createChar(7, LCD_BIG_BAR8);
-}
 
 void lcdUpdateSensorCache(float t, float h, float ec, float ph) {
   lcdCacheT = t;
@@ -453,104 +403,6 @@ void lcdDrawCurrentPage() {
   }
 }
 
-static void lcdBigDigit0(int col) {
-  lcd.setCursor(col, 0);
-  lcd.write((uint8_t)1);
-  lcd.write((uint8_t)7);
-  lcd.write((uint8_t)0);
-  lcd.setCursor(col, 1);
-  lcd.write((uint8_t)1);
-  lcd.write((uint8_t)5);
-  lcd.write((uint8_t)0);
-}
-
-static void lcdBigDigit1(int col) {
-  lcd.setCursor(col, 0);
-  lcd.print(F("  "));
-  lcd.write((uint8_t)0);
-  lcd.setCursor(col, 1);
-  lcd.print(F("  "));
-  lcd.write((uint8_t)0);
-}
-
-static void lcdBigDigit2(int col) {
-  lcd.setCursor(col, 0);
-  lcd.write((uint8_t)4);
-  lcd.write((uint8_t)2);
-  lcd.write((uint8_t)0);
-  lcd.setCursor(col, 1);
-  lcd.write((uint8_t)1);
-  lcd.write((uint8_t)5);
-  lcd.write((uint8_t)5);
-}
-
-static void lcdBigDigit3(int col) {
-  lcd.setCursor(col, 0);
-  lcd.write((uint8_t)4);
-  lcd.write((uint8_t)2);
-  lcd.write((uint8_t)0);
-  lcd.setCursor(col, 1);
-  lcd.write((uint8_t)6);
-  lcd.write((uint8_t)5);
-  lcd.write((uint8_t)0);
-}
-
-static void lcdBigDigit4(int col) {
-  lcd.setCursor(col, 0);
-  lcd.write((uint8_t)1);
-  lcd.write((uint8_t)5);
-  lcd.write((uint8_t)0);
-  lcd.setCursor(col, 1);
-  lcd.print(F("  "));
-  lcd.write((uint8_t)0);
-}
-
-static void lcdBigDigit5(int col) {
-  lcd.setCursor(col, 0);
-  lcd.write((uint8_t)1);
-  lcd.write((uint8_t)2);
-  lcd.write((uint8_t)3);
-  lcd.setCursor(col, 1);
-  lcd.write((uint8_t)6);
-  lcd.write((uint8_t)5);
-  lcd.write((uint8_t)0);
-}
-
-static void lcdBigDigit6(int col) {
-  lcd.setCursor(col, 0);
-  lcd.write((uint8_t)1);
-  lcd.write((uint8_t)2);
-  lcd.write((uint8_t)3);
-  lcd.setCursor(col, 1);
-  lcd.write((uint8_t)1);
-  lcd.write((uint8_t)5);
-  lcd.write((uint8_t)0);
-}
-
-static void lcdBigDigit7(int col) {
-  lcd.setCursor(col, 0);
-  lcd.write((uint8_t)1);
-  lcd.write((uint8_t)7);
-  lcd.write((uint8_t)0);
-  lcd.setCursor(col, 1);
-  lcd.print(F("  "));
-  lcd.write((uint8_t)0);
-}
-
-static void lcdBigDigit8(int col) {
-  lcdBigDigit0(col);
-}
-
-static void lcdBigDigit9(int col) {
-  lcd.setCursor(col, 0);
-  lcd.write((uint8_t)1);
-  lcd.write((uint8_t)2);
-  lcd.write((uint8_t)0);
-  lcd.setCursor(col, 1);
-  lcd.write((uint8_t)6);
-  lcd.write((uint8_t)5);
-  lcd.write((uint8_t)0);
-}
 
 bool readSensorValues(float& temperature, float& humidity, float& ec, float& ph) {
   temperature = sht31.readTemperature();
