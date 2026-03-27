@@ -62,7 +62,7 @@ const char* mqtt_client_id = "aduino-uno-r4-smartfarm-cjs3747";
 #define BTN4_PIN 11
 
 // 릴레이 모듈이 Active-Low(LOW=ON)인지 여부
-const bool RELAY_ACTIVE_LOW = false;
+const bool RELAY_ACTIVE_LOW = true;
 
 // 센서 및 네트워크 객체
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
