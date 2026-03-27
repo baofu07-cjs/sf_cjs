@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ActuatorType } from '@/types/actuator';
 import mqtt from 'mqtt';
+import { createServiceClient } from '@/lib/supabase/server';
 
 /**
  * 액츄에이터 현재 상태 조회 API
@@ -57,8 +58,8 @@ async function readActuatorStatusFromMQTT(timeoutMs = 1500) {
     client.subscribe(Object.values(topics), { qos: 1 }, (err) => (err ? reject(err) : resolve()));
   });
 
-  const done = await new Promise<boolean>((resolve) => {
-    const t = setTimeout(() => resolve(false), timeoutMs);
+  await new Promise<void>((resolve) => {
+    const t = setTimeout(() => resolve(), timeoutMs);
     const onMsg = (topic: string, payload: Buffer) => {
       const key = (Object.keys(topics) as ActuatorKey[]).find((k) => topics[k] === topic);
       if (!key) return;
@@ -70,15 +71,13 @@ async function readActuatorStatusFromMQTT(timeoutMs = 1500) {
       } catch {
         // ignore
       }
-
-      const all = (Object.keys(topics) as ActuatorKey[]).every((k) => typeof got[k] === 'boolean');
-      if (all) {
-        clearTimeout(t);
-        client.off('message', onMsg);
-        resolve(true);
-      }
     };
     client.on('message', onMsg);
+    setTimeout(() => {
+      client.off('message', onMsg);
+      clearTimeout(t);
+      resolve();
+    }, timeoutMs);
   });
 
   try {
@@ -87,17 +86,42 @@ async function readActuatorStatusFromMQTT(timeoutMs = 1500) {
     // ignore
   }
 
-  return { got, done };
+  return { got };
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const { got, done } = await readActuatorStatusFromMQTT(1500);
+    const { got } = await readActuatorStatusFromMQTT(1200);
+
+    // MQTT에서 못 받은 포트는 DB 최신 상태로 보정 (fan2 등 일부 누락 케이스 대응)
+    const supabase = createServiceClient();
+    const fillFromDb = async (k: ActuatorKey): Promise<boolean> => {
+      const { data } = await supabase
+        .from('actuator_control')
+        .select('action,value')
+        .eq('actuator_type', k)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(1);
+      const row = data && data.length > 0 ? (data[0] as any) : null;
+      if (!row) return false;
+      if (k === 'led') {
+        if (row.action === 'off') return false;
+        if (row.action === 'on') return true;
+        if (row.action === 'set') return row.value !== null && row.value > 0;
+        return false;
+      }
+      if (row.action === 'on') return true;
+      if (row.action === 'off') return false;
+      if (row.action === 'set') return row.value !== null && row.value > 0;
+      return false;
+    };
+
     const states: Record<ActuatorKey, boolean> = {
-      led: Boolean(got.led),
-      pump: Boolean(got.pump),
-      fan1: Boolean(got.fan1),
-      fan2: Boolean(got.fan2),
+      led: typeof got.led === 'boolean' ? got.led : await fillFromDb('led'),
+      pump: typeof got.pump === 'boolean' ? got.pump : await fillFromDb('pump'),
+      fan1: typeof got.fan1 === 'boolean' ? got.fan1 : await fillFromDb('fan1'),
+      fan2: typeof got.fan2 === 'boolean' ? got.fan2 : await fillFromDb('fan2'),
     };
 
     return NextResponse.json({
@@ -118,7 +142,6 @@ export async function GET(request: NextRequest) {
         },
       },
       from_mqtt: true,
-      complete: done,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

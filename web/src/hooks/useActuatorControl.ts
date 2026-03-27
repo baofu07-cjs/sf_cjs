@@ -36,7 +36,16 @@ export function useActuatorControl(options: UseActuatorControlOptions = {}) {
       }
 
       console.log('[useActuatorControl] 상태 업데이트:', result.data);
-      setState(result.data);
+      // 부분 누락/지연에도 깜빡임 없이 merge
+      setState((prev) => ({
+        led: {
+          enabled: result.data?.led?.enabled ?? prev.led.enabled,
+          brightness: result.data?.led?.brightness ?? prev.led.brightness,
+        },
+        pump: { enabled: result.data?.pump?.enabled ?? prev.pump.enabled },
+        fan1: { enabled: result.data?.fan1?.enabled ?? prev.fan1.enabled },
+        fan2: { enabled: result.data?.fan2?.enabled ?? prev.fan2.enabled },
+      }));
       setLoading(false);
       setError(null);
     } catch (err) {
@@ -72,18 +81,23 @@ export function useActuatorControl(options: UseActuatorControlOptions = {}) {
 
       console.log('[useActuatorControl] 제어 명령 성공:', { actuatorType, action, value });
 
-      // 아두이노 상태가 기준이므로, 명령 후 상태 확인(ACK)될 때까지 짧게 재조회
-      const desired = action === 'on' ? true : action === 'off' ? false : null;
-      const deadline = Date.now() + 4000;
-      while (Date.now() < deadline) {
-        await fetchStatus();
+      // 즉시 UI 반응(체감 속도 개선) + 이후 아두이노 상태로 확정
+      setState((prev) => {
+        const next = { ...prev } as any;
+        const desired = action === 'on' ? true : action === 'off' ? false : null;
         if (desired !== null) {
-          const current = state[actuatorType].enabled;
-          if (current === desired) break;
-        } else {
-          break;
+          if (actuatorType === 'led') next.led = { enabled: desired, brightness: desired ? prev.led.brightness || 100 : 0 };
+          else next[actuatorType] = { enabled: desired };
         }
-        await new Promise((r) => setTimeout(r, 250));
+        return next;
+      });
+
+      // ACK 대기(최대 3초) - fetchStatus는 merge라 fan2 누락에도 상태가 튀지 않음
+      const desired = action === 'on' ? true : action === 'off' ? false : null;
+      const deadline = Date.now() + 3000;
+      while (desired !== null && Date.now() < deadline) {
+        await fetchStatus();
+        await new Promise((r) => setTimeout(r, 200));
       }
       
       return { success: true };
@@ -93,7 +107,7 @@ export function useActuatorControl(options: UseActuatorControlOptions = {}) {
         error: err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.',
       };
     }
-  }, [fetchStatus, state]);
+  }, [fetchStatus]);
 
   useEffect(() => {
     // 초기 로드
