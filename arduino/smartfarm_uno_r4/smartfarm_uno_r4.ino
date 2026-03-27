@@ -70,6 +70,9 @@ WiFiSSLClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
 // 전역 변수
+unsigned long lastSensorSampleMs = 0;
+// 센서는 주기적으로 샘플링하되, MQTT 발행은 변화 임계값 조건일 때만 수행
+const unsigned long SENSOR_SAMPLE_INTERVAL_MS = 2000UL;
 // 센서 변화 임계값
 const float TEMP_HUMIDITY_DELTA_THRESHOLD = 3.0f;
 const float EC_PH_DELTA_THRESHOLD = 0.3f;
@@ -82,7 +85,7 @@ bool manualState[4] = { false, false, false, false };
 // 자동제어에서 계산된 목표 상태
 bool autoState[4] = { false, false, false, false };
 bool relayState[4] = { false, false, false, false };
-const char* actuatorTopicsByRelay[4] = { "pump", "fan1", "fan2", "led" };
+const char* actuatorNamesByRelay[4] = { "pump", "fan1", "fan2", "led" };
 
 // 마지막 발행 센서값 캐시 (threshold 비교용)
 bool hasPublishedSensorBaseline = false;
@@ -237,10 +240,12 @@ void loop() {
   // 자동제어(순차 ON/OFF) + 수동 우선 반영
   updateAutomationAndRelays();
 
-  // 시간 간격 반복 없이, 변화 임계값을 만족할 때만 발행
-  readAndPublishSensors();
-
   unsigned long currentMillis = millis();
+  if (currentMillis - lastSensorSampleMs >= SENSOR_SAMPLE_INTERVAL_MS) {
+    lastSensorSampleMs = currentMillis;
+    // 샘플링은 주기적으로 수행, MQTT 발행은 readAndPublishSensors 내부 임계값 조건으로 제한
+    readAndPublishSensors();
+  }
 
   // LCD: 표시용 센서 값 갱신 (MQTT 발행 주기와 별도)
   if (currentMillis - lastLcdSensorMs >= LCD_SENSOR_REFRESH_MS) {
@@ -1022,7 +1027,9 @@ void publishActuatorState(uint8_t relayIndex, bool desiredOn) {
   char jsonBuffer[100];
   serializeJson(doc, jsonBuffer);
 
-  String topic = "smartfarm/actuators/" + String(actuatorTopicsByRelay[relayIndex]);
+  // 제어 토픽(smartfarm/actuators/...)으로 다시 발행하면 자기 자신이 재수신하므로
+  // 상태 전용 토픽으로 분리한다.
+  String topic = "smartfarm/actuator-status/" + String(actuatorNamesByRelay[relayIndex]);
   mqttClient.publish(topic.c_str(), jsonBuffer);
 }
 
