@@ -81,16 +81,14 @@ export default function ActuatorScheduleSettings() {
     });
   };
 
-  const applyPreset = (a: ActuatorScheduleActuator, preset: 'day_on_night_off' | 'cycle_1_30') => {
-    if (preset === 'day_on_night_off') {
+  const applyPreset = (a: ActuatorScheduleActuator, preset: 'on_off_8_20' | 'cycle_1_30') => {
+    if (preset === 'on_off_8_20') {
       updateActuator(a, {
-        mode: 'day_night',
+        mode: 'on_off_time',
         enabled: true,
         timezone: 'Asia/Seoul',
-        day_start: '08:00',
-        night_start: '20:00',
-        day_state: 'on',
-        night_state: 'off',
+        on_time: '08:00',
+        off_time: '20:00',
       });
     } else {
       updateActuator(a, {
@@ -139,7 +137,7 @@ export default function ActuatorScheduleSettings() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className="text-lg font-semibold text-gray-800">타임 설정</div>
-          <div className="text-xs text-gray-500">주간ON/야간OFF, 1분ON/30분OFF 등</div>
+          <div className="text-xs text-gray-500">포트별 ON 시간 / OFF 시간 (투야 스위치 방식)</div>
         </div>
         <button
           onClick={() => setOpen((v) => !v)}
@@ -159,6 +157,7 @@ export default function ActuatorScheduleSettings() {
               {ACTUATORS.map(({ key, label }) => {
                 const s = model.actuators[key];
                 const mode: ActuatorScheduleMode = s.mode;
+                const modeForSelect: ActuatorScheduleMode = mode === 'day_night' ? 'on_off_time' : mode;
                 const enabled = (s as any).enabled === true;
 
                 return (
@@ -167,10 +166,10 @@ export default function ActuatorScheduleSettings() {
                       <div className="font-semibold text-gray-800">{label}</div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => applyPreset(key, 'day_on_night_off')}
+                          onClick={() => applyPreset(key, 'on_off_8_20')}
                           className="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-50"
                         >
-                          주간ON/야간OFF
+                          ON 08:00 / OFF 20:00
                         </button>
                         <button
                           onClick={() => applyPreset(key, 'cycle_1_30')}
@@ -185,19 +184,17 @@ export default function ActuatorScheduleSettings() {
                       <label className="text-sm">
                         <div className="text-xs text-gray-500 mb-1">모드</div>
                         <select
-                          value={mode}
+                          value={modeForSelect}
                           onChange={(e) => {
                             const m = e.target.value as ActuatorScheduleMode;
                             if (m === 'disabled') updateActuator(key, { mode: 'disabled', enabled: false });
-                            else if (m === 'day_night')
+                            else if (m === 'on_off_time')
                               updateActuator(key, {
-                                mode: 'day_night',
+                                mode: 'on_off_time',
                                 enabled: true,
                                 timezone: 'Asia/Seoul',
-                                day_start: '08:00',
-                                night_start: '20:00',
-                                day_state: 'on',
-                                night_state: 'off',
+                                on_time: '08:00',
+                                off_time: '20:00',
                               });
                             else
                               updateActuator(key, {
@@ -211,7 +208,7 @@ export default function ActuatorScheduleSettings() {
                           className="w-full border border-gray-300 rounded px-2 py-2"
                         >
                           <option value="disabled">사용 안 함</option>
-                          <option value="day_night">주간/야간</option>
+                          <option value="on_off_time">ON/OFF 시간</option>
                           <option value="cycle">반복(ON/OFF)</option>
                         </select>
                       </label>
@@ -247,48 +244,50 @@ export default function ActuatorScheduleSettings() {
                       </label>
                     </div>
 
-                    {s.mode === 'day_night' && (
-                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    {(s.mode === 'on_off_time' || s.mode === 'day_night') && (
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {(() => {
+                          const onTime = s.mode === 'day_night' ? s.day_start : s.on_time;
+                          const offTime = s.mode === 'day_night' ? s.night_start : s.off_time;
+                          return (
+                            <>
                         <label className="text-sm">
-                          <div className="text-xs text-gray-500 mb-1">주간 시작</div>
+                          <div className="text-xs text-gray-500 mb-1">ON 시간</div>
                           <input
-                            value={s.day_start}
-                            onChange={(e) => updateActuator(key, { ...s, day_start: e.target.value })}
+                            value={onTime}
+                            onChange={(e) =>
+                              updateActuator(key, {
+                                mode: 'on_off_time',
+                                enabled,
+                                timezone: (s as any).timezone || 'Asia/Seoul',
+                                on_time: e.target.value,
+                                off_time: offTime,
+                              })
+                            }
                             className="w-full border border-gray-300 rounded px-2 py-2"
                             placeholder="08:00"
                           />
                         </label>
                         <label className="text-sm">
-                          <div className="text-xs text-gray-500 mb-1">야간 시작</div>
+                          <div className="text-xs text-gray-500 mb-1">OFF 시간</div>
                           <input
-                            value={s.night_start}
-                            onChange={(e) => updateActuator(key, { ...s, night_start: e.target.value })}
+                            value={offTime}
+                            onChange={(e) =>
+                              updateActuator(key, {
+                                mode: 'on_off_time',
+                                enabled,
+                                timezone: (s as any).timezone || 'Asia/Seoul',
+                                on_time: onTime,
+                                off_time: e.target.value,
+                              })
+                            }
                             className="w-full border border-gray-300 rounded px-2 py-2"
                             placeholder="20:00"
                           />
                         </label>
-                        <label className="text-sm">
-                          <div className="text-xs text-gray-500 mb-1">주간 상태</div>
-                          <select
-                            value={s.day_state}
-                            onChange={(e) => updateActuator(key, { ...s, day_state: e.target.value as any })}
-                            className="w-full border border-gray-300 rounded px-2 py-2"
-                          >
-                            <option value="on">ON</option>
-                            <option value="off">OFF</option>
-                          </select>
-                        </label>
-                        <label className="text-sm">
-                          <div className="text-xs text-gray-500 mb-1">야간 상태</div>
-                          <select
-                            value={s.night_state}
-                            onChange={(e) => updateActuator(key, { ...s, night_state: e.target.value as any })}
-                            className="w-full border border-gray-300 rounded px-2 py-2"
-                          >
-                            <option value="off">OFF</option>
-                            <option value="on">ON</option>
-                          </select>
-                        </label>
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
 

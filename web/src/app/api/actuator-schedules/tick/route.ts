@@ -42,6 +42,20 @@ function desiredStateForSchedule(schedule: ActuatorSchedule, now: Date): boolean
   const tz = 'timezone' in schedule ? schedule.timezone || DEFAULT_TZ : DEFAULT_TZ;
   const { minutes: nowMin } = getLocalParts(tz, now);
 
+  if (schedule.mode === 'on_off_time') {
+    const onMin = parseHHMM(schedule.on_time) ?? 8 * 60;
+    const offMin = parseHHMM(schedule.off_time) ?? 20 * 60;
+
+    // on/off 시간이 동일하면 항상 ON
+    if (onMin === offMin) return true;
+
+    // 자정을 넘기는 시간대도 지원 (예: 22:00~06:00)
+    if (onMin < offMin) {
+      return nowMin >= onMin && nowMin < offMin;
+    }
+    return nowMin >= onMin || nowMin < offMin;
+  }
+
   if (schedule.mode === 'day_night') {
     const dayStart = parseHHMM(schedule.day_start) ?? 8 * 60;
     const nightStart = parseHHMM(schedule.night_start) ?? 20 * 60;

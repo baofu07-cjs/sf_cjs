@@ -1,4 +1,4 @@
-export type ActuatorScheduleMode = 'disabled' | 'day_night' | 'cycle';
+export type ActuatorScheduleMode = 'disabled' | 'on_off_time' | 'day_night' | 'cycle';
 
 export type ActuatorScheduleActuator = 'led' | 'pump' | 'fan1' | 'fan2';
 
@@ -12,6 +12,14 @@ export interface DayNightSchedule {
   night_state: 'on' | 'off';
 }
 
+export interface OnOffTimeSchedule {
+  mode: 'on_off_time';
+  enabled: boolean;
+  timezone: string; // e.g. "Asia/Seoul"
+  on_time: string; // "HH:mm"
+  off_time: string; // "HH:mm"
+}
+
 export interface CycleSchedule {
   mode: 'cycle';
   enabled: boolean;
@@ -21,7 +29,11 @@ export interface CycleSchedule {
   // anchor within day; simplest is midnight local time
 }
 
-export type ActuatorSchedule = { mode: 'disabled'; enabled: false } | DayNightSchedule | CycleSchedule;
+export type ActuatorSchedule =
+  | { mode: 'disabled'; enabled: false }
+  | OnOffTimeSchedule
+  | DayNightSchedule
+  | CycleSchedule;
 
 export interface ActuatorSchedulesV1 {
   version: 1;
